@@ -411,6 +411,11 @@ export const products = {
   create: (data: CreateProductData) => request<Product>("POST", "/products", data),
   update: (id: string, data: Partial<CreateProductData & { isActive: boolean }>) =>
     request<Product>("PATCH", `/products/${id}`, data),
+  delete: (id: string) =>
+    request<{ id: string; deleted: boolean; archived?: boolean; message?: string }>(
+      "DELETE",
+      `/products/${id}`,
+    ),
 };
 
 // ─── Inventory ────────────────────────────────────────────────────

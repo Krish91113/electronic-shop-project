@@ -1,4 +1,5 @@
 import prisma from '../../config/db.js';
+import cloudinary from '../../config/cloudinary.js';
 import { NotFoundError, ConflictError, BadRequestError } from '../../utils/errors.js';
 import { slugify, parsePagination, paginationMeta } from '../../utils/helpers.js';
 import { applyPricingRule } from '../../utils/pricing.js';
@@ -164,4 +165,44 @@ export async function scanBarcode(shopId, barcode) {
   });
   if (!product) throw new NotFoundError('Product not found for this barcode');
   return product;
+}
+
+export async function deleteProduct(shopId, productId, userId) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, shopId },
+    include: { images: true, saleItems: { take: 1 } },
+  });
+  if (!product) throw new NotFoundError('Product not found');
+
+  // If product is associated with completed sale invoices, soft-delete to maintain invoice history
+  if (product.saleItems && product.saleItems.length > 0) {
+    await prisma.product.update({
+      where: { id: productId },
+      data: { isActive: false, isPublished: false },
+    });
+    return {
+      id: productId,
+      deleted: true,
+      archived: true,
+      message: 'Product archived from catalogue to preserve historical sales records.',
+    };
+  }
+
+  // Otherwise, clean up associated Cloudinary images safely
+  if (product.images && product.images.length > 0) {
+    for (const img of product.images) {
+      try {
+        await cloudinary.uploader.destroy(img.publicId);
+      } catch {
+        // Silently continue if asset already deleted or network error
+      }
+    }
+  }
+
+  // Delete product (cascades to inventory, stockMovements, and productImages)
+  await prisma.product.delete({
+    where: { id: productId },
+  });
+
+  return { id: productId, deleted: true, archived: false };
 }

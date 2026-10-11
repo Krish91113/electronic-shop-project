@@ -23,7 +23,11 @@ import {
   ArrowDownToLine,
   Store,
   Trash2,
+  Camera,
+  AlertTriangle,
+  X,
 } from "lucide-react";
+import { BarcodeScanner } from "./barcode-scanner";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -194,6 +198,7 @@ export function ProductsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isActiveFilter, setIsActiveFilter] = useState<boolean | undefined>(undefined);
   const [page, setPage] = useState(1);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -224,6 +229,22 @@ export function ProductsPage() {
     onError: (err) => toast.error(getErrorMessage(err)),
   });
 
+  const [deleteProductItem, setDeleteProductItem] = useState<ApiProduct | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => productsApi.delete(id),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setDeleteProductItem(null);
+      if (data?.archived) {
+        toast.info(data.message || "Product archived because of historical sales.");
+      } else {
+        toast.success("Product deleted successfully.");
+      }
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
   const filterLabel =
     isActiveFilter === true ? "Active" : isActiveFilter === false ? "Inactive" : "All";
 
@@ -240,11 +261,23 @@ export function ProductsPage() {
 
       <section className="panel">
         <div className="table-toolbar">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by name or barcode…"
-          />
+          <div className="flex gap-2 flex-1 items-center">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by name or barcode…"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScannerOpen(true)}
+              title="Scan barcode to search"
+              className="h-10 px-3 shrink-0"
+            >
+              <Camera size={16} className="mr-1" />
+              <span className="hidden sm:inline">Scan</span>
+            </Button>
+          </div>
           <div className="filter-chips">
             {(["All", "Active", "Inactive"] as const).map((label) => (
               <button
@@ -308,7 +341,7 @@ export function ProductsPage() {
                       </td>
                       <td>
                         <div className="table-actions">
-                          <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`}>
+                          <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`} title="Edit product">
                             <Link to="/products/$id/edit" params={{ id: p.id }}>
                               <Pencil size={15} />
                             </Link>
@@ -317,12 +350,23 @@ export function ProductsPage() {
                             variant="ghost"
                             size="icon"
                             aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
+                            title={p.isActive ? "Deactivate product" : "Activate product"}
                             disabled={toggleMutation.isPending}
                             onClick={() =>
                               toggleMutation.mutate({ id: p.id, isActive: !p.isActive })
                             }
                           >
                             <Power size={15} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${p.name}`}
+                            title="Delete product"
+                            className="text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteProductItem(p)}
+                          >
+                            <Trash2 size={15} />
                           </Button>
                         </div>
                       </td>
@@ -339,7 +383,7 @@ export function ProductsPage() {
                   <div className="mobile-record-top">
                     <ProductThumb product={p} />
                     <div className="table-actions">
-                      <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`}>
+                      <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`} title="Edit product">
                         <Link to="/products/$id/edit" params={{ id: p.id }}>
                           <Pencil size={15} />
                         </Link>
@@ -348,10 +392,21 @@ export function ProductsPage() {
                         variant="ghost"
                         size="icon"
                         aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
+                        title={p.isActive ? "Deactivate product" : "Activate product"}
                         disabled={toggleMutation.isPending}
                         onClick={() => toggleMutation.mutate({ id: p.id, isActive: !p.isActive })}
                       >
                         <Power size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${p.name}`}
+                        title="Delete product"
+                        className="text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteProductItem(p)}
+                      >
+                        <Trash2 size={15} />
                       </Button>
                     </div>
                   </div>
@@ -381,6 +436,52 @@ export function ProductsPage() {
           </>
         )}
       </section>
+
+      {/* Delete product confirmation dialog */}
+      <Dialog
+        open={!!deleteProductItem}
+        onOpenChange={(open) => !open && setDeleteProductItem(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 size={18} /> Delete Product
+          </DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete <strong>{deleteProductItem?.name}</strong>?
+          </DialogDescription>
+          <p className="text-xs text-muted-foreground mt-2">
+            This will permanently remove the product and its images from your active catalogue.
+          </p>
+          <div className="dialog-actions mt-4 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteProductItem(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteProductItem && deleteMutation.mutate(deleteProductItem.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete Product"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={(res) => {
+          setScannerOpen(false);
+          setSearch(res.barcode);
+          setDebouncedSearch(res.barcode);
+        }}
+        title="Scan Barcode to Find Product"
+        description="Position barcode in viewfinder to filter catalogue."
+      />
     </AppShell>
   );
 }
@@ -405,6 +506,7 @@ export function ProductFormPage() {
     queryFn: () => taxCategoriesApi.list(),
   });
 
+  const [barcode, setBarcode] = useState("");
   const [purchaseCost, setPurchaseCost] = useState(0);
   const [isPublished, setIsPublished] = useState(true);
   const [taxCategoryId, setTaxCategoryId] = useState<string>("");
@@ -412,9 +514,56 @@ export function ProductFormPage() {
   const [imagePreview, setImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Barcode scanning & validation state
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [existingBarcodeProduct, setExistingBarcodeProduct] = useState<ApiProduct | null>(null);
+  const [checkingBarcode, setCheckingBarcode] = useState(false);
+  const [barcodeStatus, setBarcodeStatus] = useState<"idle" | "checking" | "found" | "available">("idle");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Check barcode uniqueness in active shop
+  const checkBarcode = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setExistingBarcodeProduct(null);
+      setBarcodeStatus("idle");
+      return;
+    }
+    setCheckingBarcode(true);
+    setBarcodeStatus("checking");
+    try {
+      const found = await productsApi.scan(trimmed);
+      if (found && found.id !== id) {
+        setExistingBarcodeProduct(found);
+        setBarcodeStatus("found");
+        toast.warning(`Product "${found.name}" already exists with this barcode!`);
+      } else {
+        setExistingBarcodeProduct(null);
+        setBarcodeStatus("available");
+      }
+    } catch {
+      // 404 indicates barcode is not registered in this shop -> available
+      setExistingBarcodeProduct(null);
+      setBarcodeStatus("available");
+    } finally {
+      setCheckingBarcode(false);
+    }
+  };
+
+  const handleBarcodeScanResult = (result: { barcode: string; format: string }) => {
+    setBarcode(result.barcode);
+    setScannerOpen(false);
+    checkBarcode(result.barcode);
+    toast.success(`Scanned: ${result.barcode}`);
+  };
+
   // Populate form when editing
   useEffect(() => {
     if (existing) {
+      setBarcode(existing.barcode ?? "");
       setPurchaseCost(existing.purchaseCost);
       setIsPublished(existing.isPublished);
       setTaxCategoryId(existing.taxCategoryId ?? "");
@@ -444,9 +593,15 @@ export function ProductFormPage() {
       return;
     }
 
+    // Prevent submitting duplicate product if barcode already exists
+    if (!id && existingBarcodeProduct) {
+      toast.error("A product with this barcode already exists. Please receive stock instead or change barcode.");
+      return;
+    }
+
     const payload = {
       name,
-      barcode: str("barcode") || undefined,
+      barcode: barcode.trim() || undefined,
       brand: str("brand") || undefined,
       model: str("model") || undefined,
       category: str("category") || undefined,
@@ -464,9 +619,13 @@ export function ProductFormPage() {
       if (id) {
         // Edit mode
         const updated = await productsApi.update(id, payload);
-        // Upload image if selected
+        // Upload image if newly selected
         if (imageFile) {
-          await imagesApi.upload(updated.id, imageFile);
+          try {
+            await imagesApi.upload(updated.id, imageFile);
+          } catch (imgErr) {
+            toast.error("Image upload failed: " + getErrorMessage(imgErr));
+          }
         }
         qc.invalidateQueries({ queryKey: ["products"] });
         qc.invalidateQueries({ queryKey: ["product", id] });
@@ -479,7 +638,11 @@ export function ProductFormPage() {
           initialStock: initialStock > 0 ? initialStock : undefined,
         });
         if (imageFile) {
-          await imagesApi.upload(created.id, imageFile);
+          try {
+            await imagesApi.upload(created.id, imageFile);
+          } catch (imgErr) {
+            toast.error("Product created, but image upload failed: " + getErrorMessage(imgErr));
+          }
         }
         qc.invalidateQueries({ queryKey: ["products"] });
         toast.success("Product created successfully.");
@@ -492,13 +655,32 @@ export function ProductFormPage() {
     }
   }
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function processImageFile(file: File | undefined | null) {
     if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Please upload a valid JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size must be less than 5MB.");
+      return;
+    }
     setImageFile(file);
     const reader = new FileReader();
     reader.onload = () => setImagePreview(String(reader.result));
     reader.readAsDataURL(file);
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    processImageFile(e.target.files?.[0]);
+  }
+
+  function handleRemoveImage() {
+    setImageFile(null);
+    setImagePreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
   if (id && loadingProduct) {
@@ -527,12 +709,132 @@ export function ProductFormPage() {
           subtitle={
             id
               ? "Update this product's details and pricing."
-              : "Create a new product in your catalogue."
+              : "Scan a manufacturer barcode or enter details manually."
           }
         />
+
         <form onSubmit={handleSubmit}>
           <div className="panel">
             <div className="panel-body">
+              {/* Identification & Barcode Scanning */}
+              <section className="form-section">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="m-0">Barcode &amp; Identification</h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScannerOpen(true)}
+                    className="border-emerald-600/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  >
+                    <Camera size={16} className="mr-1.5" />
+                    Scan Barcode
+                  </Button>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-full">
+                    <Field label="Manufacturer Barcode">
+                      <div className="flex gap-2">
+                        <Input
+                          name="barcode"
+                          value={barcode}
+                          onChange={(e) => {
+                            setBarcode(e.target.value);
+                            if (barcodeStatus !== "idle") setBarcodeStatus("idle");
+                          }}
+                          onBlur={() => {
+                            if (barcode.trim()) checkBarcode(barcode);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              checkBarcode(barcode);
+                            }
+                          }}
+                          placeholder="Point camera, use USB scanner, or type barcode…"
+                          className="font-mono flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => checkBarcode(barcode)}
+                          disabled={!barcode.trim() || checkingBarcode}
+                        >
+                          {checkingBarcode ? <RefreshCw size={14} className="animate-spin" /> : "Check"}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => setScannerOpen(true)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          title="Open Camera Scanner"
+                        >
+                          <Camera size={16} />
+                          <span className="hidden sm:inline ml-1">Scan</span>
+                        </Button>
+                      </div>
+                    </Field>
+                  </div>
+
+                  {id && (
+                    <Field label="Internal Product ID">
+                      <Input readOnly value={existing?.id ?? "—"} className="bg-muted font-mono text-xs" />
+                    </Field>
+                  )}
+                </div>
+
+                {/* Status alert for duplicate product */}
+                {existingBarcodeProduct && !id && (
+                  <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                      <div className="flex-1 space-y-2">
+                        <h4 className="font-semibold text-sm">Product Already Exists with this Barcode!</h4>
+                        <p className="text-xs">
+                          <strong>{existingBarcodeProduct.name}</strong>
+                          {existingBarcodeProduct.brand && ` (${existingBarcodeProduct.brand})`}
+                          {existingBarcodeProduct.inventory != null && ` · Current Stock: ${existingBarcodeProduct.inventory.quantity} units`}
+                          {existingBarcodeProduct.defaultSellingPrice != null && ` · Price: ₹${existingBarcodeProduct.defaultSellingPrice}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          To avoid creating duplicates, you can receive additional stock for this existing product or edit its details.
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Button asChild size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            <Link to="/inventory/receive">
+                              <Boxes size={14} className="mr-1" /> Receive Stock
+                            </Link>
+                          </Button>
+                          <Button asChild size="sm" variant="outline">
+                            <Link to="/products/$id/edit" params={{ id: existingBarcodeProduct.id }}>
+                              <Pencil size={14} className="mr-1" /> Edit Product
+                            </Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => {
+                              setBarcode("");
+                              setExistingBarcodeProduct(null);
+                              setBarcodeStatus("idle");
+                            }}
+                          >
+                            Clear Barcode
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {barcodeStatus === "available" && barcode.trim() && !existingBarcodeProduct && (
+                  <div className="mt-2 text-xs flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <CheckCircle2 size={14} /> Barcode is available for registration.
+                  </div>
+                )}
+              </section>
+
               {/* Basic details */}
               <section className="form-section">
                 <h2>Basic details</h2>
@@ -542,14 +844,14 @@ export function ProductFormPage() {
                       name="name"
                       required
                       defaultValue={existing?.name}
-                      placeholder="e.g. Wireless Headphones"
+                      placeholder="e.g. Wireless Noise-Cancelling Headphones"
                     />
                   </Field>
                   <Field label="Category">
                     <Input
                       name="category"
                       defaultValue={existing?.category}
-                      placeholder="e.g. Audio"
+                      placeholder="e.g. Audio & Accessories"
                     />
                   </Field>
                   <Field label="Brand">
@@ -568,29 +870,10 @@ export function ProductFormPage() {
                         name="description"
                         defaultValue={existing?.description}
                         rows={3}
-                        placeholder="Brief product description…"
+                        placeholder="Brief product description and features…"
                       />
                     </Field>
                   </div>
-                </div>
-              </section>
-
-              {/* Identification */}
-              <section className="form-section">
-                <h2>Identification</h2>
-                <div className="form-grid">
-                  <Field label="Barcode">
-                    <Input
-                      name="barcode"
-                      defaultValue={existing?.barcode}
-                      placeholder="Manufacturer barcode"
-                    />
-                  </Field>
-                  {id && (
-                    <Field label="Product ID">
-                      <Input readOnly value={existing?.id ?? "—"} className="bg-muted" />
-                    </Field>
-                  )}
                 </div>
               </section>
 
@@ -615,10 +898,11 @@ export function ProductFormPage() {
                       min={0}
                       step="0.01"
                       defaultValue={existing?.defaultSellingPrice}
+                      placeholder="Leave blank for auto-rule"
                     />
                   </Field>
                   {!id && (
-                    <Field label="Initial stock">
+                    <Field label="Opening stock (units)">
                       <Input name="initialStock" type="number" min={0} defaultValue={0} />
                     </Field>
                   )}
@@ -634,16 +918,16 @@ export function ProductFormPage() {
                     <Input
                       name="warranty"
                       defaultValue={existing?.warranty}
-                      placeholder="e.g. 1 year limited"
+                      placeholder="e.g. 1 Year Manufacturer Warranty"
                     />
                   </Field>
-                  <Field label="Tax category">
+                  <Field label="GST / Tax category">
                     <Select value={taxCategoryId} onValueChange={setTaxCategoryId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="None" />
+                        <SelectValue placeholder="None (0%)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="">None (0%)</SelectItem>
                         {taxCats?.map((tc) => (
                           <SelectItem key={tc.id} value={tc.id}>
                             {tc.name} ({tc.rate}%)
@@ -669,42 +953,176 @@ export function ProductFormPage() {
                 </div>
               </section>
 
-              {/* Image */}
+              {/* Product Image with Cloudinary support */}
               <section className="form-section">
-                <h2>Product image</h2>
-                <label className="dropzone">
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Product preview"
-                      className="max-h-40 rounded object-contain"
-                    />
-                  ) : (
-                    <Upload size={25} />
-                  )}
-                  <span>Select an image or drop a file here</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    aria-label="Product image"
-                    onChange={handleImageChange}
-                  />
-                  {!id && <small>Image will be uploaded after the product is created.</small>}
-                </label>
+                <h2>Product image (Cloudinary)</h2>
+                {imagePreview ? (
+                  <div className="space-y-3">
+                    <div className="relative inline-block border rounded-lg p-2 bg-muted/20">
+                      <img
+                        src={imagePreview}
+                        alt="Product preview"
+                        className="max-h-48 max-w-full rounded object-contain"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow"
+                        onClick={handleRemoveImage}
+                        title="Remove image"
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload size={14} className="mr-1.5" /> Replace Image
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cameraInputRef.current?.click()}
+                      >
+                        <Camera size={14} className="mr-1.5" /> Retake Photo
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="dropzone">
+                    <Upload size={28} className="text-muted-foreground mb-1" />
+                    <span className="font-medium">Select an image or capture with camera</span>
+                    <small className="text-muted-foreground">Supported: JPEG, PNG, WebP (Max 5MB)</small>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload size={14} className="mr-1.5" /> Choose File
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cameraInputRef.current?.click()}
+                      >
+                        <Camera size={14} className="mr-1.5" /> Take Photo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hidden file inputs */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                {!id && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Image will be uploaded directly to Cloudinary and linked upon saving.
+                  </p>
+                )}
               </section>
             </div>
           </div>
 
-          <div className="form-actions">
-            <Button asChild variant="outline" type="button">
-              <Link to="/products">Cancel</Link>
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving…" : id ? "Save changes" : "Create product"}
-            </Button>
+          <div className="form-actions flex justify-between items-center flex-wrap gap-2">
+            {id ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmDelete(true)}
+                disabled={submitting}
+              >
+                <Trash2 size={15} className="mr-1.5" /> Delete product
+              </Button>
+            ) : (
+              <div />
+            )}
+            <div className="flex gap-2">
+              <Button asChild variant="outline" type="button">
+                <Link to="/products">Cancel</Link>
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting || (!id && !!existingBarcodeProduct)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {submitting ? "Saving…" : id ? "Save changes" : "Create product"}
+              </Button>
+            </div>
           </div>
         </form>
       </div>
+
+      {/* Delete confirmation dialog for Edit mode */}
+      {id && (
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent className="max-w-md">
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 size={18} /> Delete Product
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{existing?.name}</strong>?
+            </DialogDescription>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will remove the product and its images from your active catalogue.
+            </p>
+            <div className="dialog-actions mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  try {
+                    const res = await productsApi.delete(id);
+                    qc.invalidateQueries({ queryKey: ["products"] });
+                    if (res?.archived) {
+                      toast.info(res.message || "Product archived because of historical sales.");
+                    } else {
+                      toast.success("Product deleted successfully.");
+                    }
+                    navigate({ to: "/products" });
+                  } catch (err) {
+                    toast.error(getErrorMessage(err));
+                  }
+                }}
+              >
+                Delete Product
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Barcode scanner dialog */}
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={handleBarcodeScanResult}
+        title="Scan Product Barcode"
+        description="Position the barcode inside the camera frame or enter it manually."
+      />
     </AppShell>
   );
 }
@@ -1095,9 +1513,10 @@ export function ReceiveStockPage() {
   const [unitCost, setUnitCost] = useState(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-  async function handleScan() {
-    const code = barcode.trim();
+  async function handleScan(codeToScan?: string) {
+    const code = (codeToScan ?? barcode).trim();
     if (!code) return;
     setScanning(true);
     setScannedProduct(null);
@@ -1106,8 +1525,10 @@ export function ReceiveStockPage() {
       const product = await productsApi.scan(code);
       setScannedProduct(product);
       setUnitCost(product.purchaseCost);
+      toast.success(`Product found: ${product.name}`);
     } catch {
       setNotFound(true);
+      toast.error(`Product not found for barcode "${code}"`);
     } finally {
       setScanning(false);
     }
@@ -1190,13 +1611,22 @@ export function ReceiveStockPage() {
                     placeholder="Scan or type barcode…"
                   />
                 </Field>
-                <Button
-                  className="self-end"
-                  onClick={handleScan}
-                  disabled={scanning || !barcode.trim()}
-                >
-                  <ScanLine /> {scanning ? "Scanning…" : "Scan"}
-                </Button>
+                <div className="flex gap-2 self-end">
+                  <Button
+                    onClick={() => handleScan()}
+                    disabled={scanning || !barcode.trim()}
+                    variant="outline"
+                  >
+                    <ScanLine size={16} className="mr-1.5" /> {scanning ? "Scanning…" : "Lookup"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Camera size={16} className="mr-1.5" /> Camera
+                  </Button>
+                </div>
               </div>
 
               {scannedProduct && (
@@ -1281,6 +1711,18 @@ export function ReceiveStockPage() {
           )}
         </div>
       </div>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={(res) => {
+          setBarcode(res.barcode);
+          setScannerOpen(false);
+          handleScan(res.barcode);
+        }}
+        title="Scan Barcode to Receive Stock"
+        description="Position the barcode within the camera viewfinder."
+      />
     </AppShell>
   );
 }

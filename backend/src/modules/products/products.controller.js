@@ -44,3 +44,13 @@ export async function scan(req, res, next) {
     next(err);
   }
 }
+
+export async function remove(req, res, next) {
+  try {
+    const result = await service.deleteProduct(req.shopId, req.params.id, req.user.id);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+

@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Receipt,
   RotateCcw,
+  Camera,
 } from "lucide-react";
+import { BarcodeScanner } from "./barcode-scanner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +28,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
-// ─── Types ───────────────────────────────────────────────────────
+// ─── Types & Audio ─────────────────────────────────────────────────
 
 type CartLine = {
   product: Product;
@@ -35,6 +37,33 @@ type CartLine = {
 };
 
 const money = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+function playBeep(type: "success" | "error" = "success") {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === "success") {
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } else {
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    }
+  } catch {
+    // Ignore audio permission/context errors
+  }
+}
 
 // ─── BillingPage ─────────────────────────────────────────────────
 
@@ -45,7 +74,11 @@ export function BillingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+  const [showUnknownDialog, setShowUnknownDialog] = useState(false);
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const lastScannedCodeRef = useRef<string>("");
 
   // Cart state
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -69,13 +102,23 @@ export function BillingPage() {
   // ─── Barcode scan mutation ─────────────────────────────────────
 
   const scanMutation = useMutation({
-    mutationFn: (barcode: string) => productsApi.scan(barcode),
+    mutationFn: (barcode: string) => {
+      lastScannedCodeRef.current = barcode;
+      return productsApi.scan(barcode);
+    },
     onSuccess: (product) => {
-      addToCart(product);
-      setBarcodeInput("");
-      toast.success(`${product.name} added to cart`);
+      const added = addToCart(product);
+      if (added) {
+        setBarcodeInput("");
+        playBeep("success");
+        toast.success(`${product.name} added to cart`);
+      }
     },
     onError: (err) => {
+      playBeep("error");
+      const code = lastScannedCodeRef.current;
+      setUnknownBarcode(code);
+      setShowUnknownDialog(true);
       toast.error(getErrorMessage(err));
     },
     onSettled: () => setIsScanning(false),
@@ -92,12 +135,14 @@ export function BillingPage() {
       key: string;
     }) => salesApi.create(payload, key),
     onSuccess: (sale) => {
+      playBeep("success");
       setCompletedSale(sale);
       setCart([]);
       setConfirmOpen(false);
       toast.success(`Invoice ${sale.invoiceNumber} created!`);
     },
     onError: (err) => {
+      playBeep("error");
       setConfirmOpen(false);
       toast.error(getErrorMessage(err));
     },
@@ -105,14 +150,27 @@ export function BillingPage() {
 
   // ─── Cart helpers ─────────────────────────────────────────────
 
-  const addToCart = useCallback((product: Product) => {
+  const addToCart = useCallback((product: Product): boolean => {
     setCompletedSale(null);
+    const inventoryQty = product.inventory?.quantity ?? 0;
+    if (inventoryQty <= 0) {
+      toast.error(`"${product.name}" is out of stock! Cannot add to bill.`);
+      playBeep("error");
+      return false;
+    }
+
+    let canAdd = true;
     setCart((prev) => {
       const exists = prev.find((l) => l.product.id === product.id);
       if (exists) {
-        const inventoryQty = product.inventory?.quantity ?? 999;
+        if (exists.qty >= inventoryQty) {
+          toast.warning(`Cannot add more. Max available stock is ${inventoryQty} units.`);
+          playBeep("error");
+          canAdd = false;
+          return prev;
+        }
         return prev.map((l) =>
-          l.product.id === product.id ? { ...l, qty: Math.min(l.qty + 1, inventoryQty) } : l,
+          l.product.id === product.id ? { ...l, qty: l.qty + 1 } : l,
         );
       }
       return [
@@ -124,6 +182,7 @@ export function BillingPage() {
         },
       ];
     });
+    return canAdd;
   }, []);
 
   const updateLine = (id: string, patch: Partial<CartLine>) =>
@@ -133,12 +192,14 @@ export function BillingPage() {
 
   // ─── Barcode scan handler ──────────────────────────────────────
 
-  const handleScan = () => {
-    const code = barcodeInput.trim();
+  const handlePerformScan = (codeToScan?: string) => {
+    const code = (codeToScan ?? barcodeInput).trim();
     if (!code) return;
     setIsScanning(true);
     scanMutation.mutate(code);
   };
+
+  const handleScan = () => handlePerformScan();
 
   const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") handleScan();
@@ -259,21 +320,30 @@ export function BillingPage() {
               <Input
                 ref={barcodeRef}
                 aria-label="Scan barcode"
-                placeholder="Scan barcode or enter and press Enter…"
+                placeholder="Scan barcode, type, or use USB scanner…"
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 onKeyDown={handleBarcodeKeyDown}
                 disabled={isScanning}
+                className="font-mono"
               />
             </div>
             <Button
               variant="outline"
               onClick={handleScan}
               disabled={!barcodeInput.trim() || isScanning}
-              aria-label="Scan product"
+              aria-label="Lookup barcode"
             >
-              <ScanLine />
-              {isScanning ? "Scanning…" : "Scan"}
+              <ScanLine size={16} className="mr-1" />
+              {isScanning ? "Looking up…" : "Lookup"}
+            </Button>
+            <Button
+              onClick={() => setScannerOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              aria-label="Scan product with camera"
+            >
+              <Camera size={16} className="mr-1.5" />
+              <span>Camera</span>
             </Button>
           </div>
 
@@ -552,6 +622,50 @@ export function BillingPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Unknown Barcode Dialog ── */}
+      <Dialog open={showUnknownDialog} onOpenChange={setShowUnknownDialog}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <AlertTriangle size={20} /> Product Not Found
+          </DialogTitle>
+          <DialogDescription>
+            No product in this shop matches the scanned barcode:
+            <span className="block mt-1 font-mono font-semibold text-foreground text-base bg-muted/60 p-2 rounded">
+              {unknownBarcode}
+            </span>
+          </DialogDescription>
+          <p className="text-sm text-muted-foreground mt-2">
+            Unregistered items cannot be billed. Would you like to register this product now?
+          </p>
+          <div className="dialog-actions mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowUnknownDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              asChild
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => setShowUnknownDialog(false)}
+            >
+              <Link to="/products/new">
+                <Plus size={16} className="mr-1" /> Register Product
+              </Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Barcode Scanner Camera Dialog ── */}
+      <BarcodeScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={(result) => {
+          setScannerOpen(false);
+          handlePerformScan(result.barcode);
+        }}
+        title="Scan Product to Bill"
+        description="Position the product barcode within the camera viewfinder."
+      />
     </AppShell>
   );
 }
