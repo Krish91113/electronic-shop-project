@@ -2,8 +2,17 @@ import prisma from '../../config/db.js';
 import { round2 } from '../../utils/money.js';
 
 export async function getDashboard(shopId, from, to) {
-  const fromDate = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 30));
-  const toDate = to ? new Date(to) : new Date();
+  let fromDate = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 30));
+  let toDate = to ? new Date(to) : new Date();
+
+  if (typeof from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    fromDate = new Date(`${from}T00:00:00.000Z`);
+  }
+  if (typeof to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    toDate = new Date(`${to}T23:59:59.999Z`);
+  } else if (to && toDate.getUTCHours() === 0 && toDate.getUTCMinutes() === 0 && toDate.getUTCSeconds() === 0) {
+    toDate.setUTCHours(23, 59, 59, 999);
+  }
 
   // Total completed sales
   const salesAgg = await prisma.sale.aggregate({

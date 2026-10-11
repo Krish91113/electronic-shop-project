@@ -1731,29 +1731,51 @@ export function ReceiveStockPage() {
 
 function rangeFor(option: string): { from: string; to: string } {
   const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const localYmd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
   if (option === "Today") {
-    const d = iso(now);
+    const d = localYmd(now);
     return { from: d, to: d };
   }
   if (option === "Last month") {
     const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const last = new Date(now.getFullYear(), now.getMonth(), 0);
-    return { from: iso(first), to: iso(last) };
+    return { from: localYmd(first), to: localYmd(last) };
   }
   if (option === "This week") {
     const day = now.getDay();
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((day + 6) % 7));
-    return { from: iso(monday), to: iso(now) };
+    return { from: localYmd(monday), to: localYmd(now) };
+  }
+  if (option === "This year") {
+    const first = new Date(now.getFullYear(), 0, 1);
+    return { from: localYmd(first), to: localYmd(now) };
+  }
+  if (option === "All time") {
+    return { from: "2020-01-01", to: localYmd(now) };
   }
   // This month (default)
   const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { from: iso(first), to: iso(now) };
+  return { from: localYmd(first), to: localYmd(now) };
 }
 
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+const formatDate = (value: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 // ─── DashboardPage ────────────────────────────────────────────────
 
@@ -2220,6 +2242,8 @@ export function ReportsPage() {
           <option>This week</option>
           <option>This month</option>
           <option>Last month</option>
+          <option>This year</option>
+          <option>All time</option>
         </select>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw size={15} /> Refresh

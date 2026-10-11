@@ -5,8 +5,26 @@ import { round2 } from '../../utils/money.js';
  * Profit & Loss report using cost snapshots from SaleItems.
  */
 export async function profitLoss(shopId, from, to, timezone) {
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
+  let fromDate = new Date(from);
+  let toDate = new Date(to);
+
+  // If date-only string like YYYY-MM-DD, set start of day for fromDate and end of day for toDate
+  if (typeof from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    fromDate = new Date(`${from}T00:00:00.000Z`);
+  }
+  if (typeof to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    toDate = new Date(`${to}T23:59:59.999Z`);
+  } else if (toDate) {
+    // If toDate is at exact midnight UTC (00:00:00), extend to end of day so all sales on that day are captured
+    if (
+      toDate.getUTCHours() === 0 &&
+      toDate.getUTCMinutes() === 0 &&
+      toDate.getUTCSeconds() === 0 &&
+      toDate.getUTCMilliseconds() === 0
+    ) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+  }
 
   // Net sales from completed/refunded sales
   const salesAgg = await prisma.sale.aggregate({
