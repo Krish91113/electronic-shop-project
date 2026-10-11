@@ -27,10 +27,26 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS
+// Dynamic CORS origin configuration
+const configuredOrigins = (Array.isArray(env.CORS_ORIGIN) ? env.CORS_ORIGIN : [env.CORS_ORIGIN])
+  .filter(Boolean)
+  .map((o) => o.replace(/\/+$/, ''));
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      if (
+        configuredOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith('.vercel.app') ||
+        cleanOrigin.includes('localhost') ||
+        cleanOrigin.includes('127.0.0.1')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   })
 );

@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/',
 };
@@ -14,7 +14,7 @@ export async function login(req, res, next) {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
     res.cookie('token', result.token, COOKIE_OPTS);
-    res.json({ data: result.user });
+    res.json({ data: { ...result.user, token: result.token } });
   } catch (err) {
     next(err);
   }

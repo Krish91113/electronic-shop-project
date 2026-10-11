@@ -55,6 +55,7 @@ export interface User {
   name?: string;
   role: string;
   shops: Pick<Shop, "id" | "name" | "slug" | "code">[];
+  token?: string;
 }
 
 export interface TaxCategory {
@@ -233,6 +234,24 @@ export function getActiveShopId(): string | null {
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
+const TOKEN_KEY = "volt_auth_token";
+let authToken: string | null = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
 }
@@ -253,6 +272,7 @@ async function rawRequest(
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(activeShopId ? { "x-shop-id": activeShopId } : {}),
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     ...extraHeaders,
   };
 

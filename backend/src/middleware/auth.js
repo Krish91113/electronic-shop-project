@@ -5,7 +5,9 @@ import { UnauthorizedError, NotFoundError } from '../utils/errors.js';
 
 export async function authenticate(req, _res, next) {
   try {
-    const token = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const token = bearerToken || req.cookies?.token;
     if (!token) throw new UnauthorizedError('Authentication required');
 
     const payload = jwt.verify(token, env.JWT_SECRET);

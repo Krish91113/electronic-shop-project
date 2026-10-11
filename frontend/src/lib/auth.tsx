@@ -4,6 +4,7 @@ import {
   auth as authApi,
   setActiveShop,
   setUnauthorizedHandler,
+  setAuthToken,
   type User,
   type Shop,
 } from "./api";
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Any 401 from the API clears the local session so protected UI redirects to login.
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      setAuthToken(null);
       setUser(null);
       setActiveShopState(null);
       setActiveShop(null);
@@ -80,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const me = await authApi.login(email, password);
+      if (me.token) {
+        setAuthToken(me.token);
+      }
       queryClient.clear();
       setUser(me);
       resolveShop(me);
@@ -91,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout();
     } finally {
+      setAuthToken(null);
       setUser(null);
       setActiveShopState(null);
       setActiveShop(null);
