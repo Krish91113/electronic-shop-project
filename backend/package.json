@@ -7,7 +7,10 @@
     "dev": "node --watch src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status",
     "prisma:seed": "node prisma/seed.js",
+    "prisma:init:prod": "node prisma/init-production.js",
     "test": "vitest run"
   },
   "dependencies": {

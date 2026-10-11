@@ -14,21 +14,23 @@ npm install
 
 # Copy env and configure
 cp .env.example .env
-# Edit .env with your DATABASE_URL, JWT_SECRET, Cloudinary credentials
+# Edit .env with your DATABASE_URL (pooled), DIRECT_URL (direct), JWT_SECRET, Cloudinary credentials
 
 # Generate Prisma client
-npx prisma generate
+npm run prisma:generate
 
-# Create/sync the database schema
-# (this project is schema-first with `db push`; there is no migrations folder)
-npx prisma db push
+# Deploy migrations to database
+npm run prisma:migrate:deploy
 
-# Seed the database (1 owner, 2 shops, sample products)
-# WARNING: the seed script deletes ALL existing data, so it requires
-# explicit confirmation outside of tests:
+# Verify migration state
+npm run prisma:migrate:status
+
+# Safe, Idempotent Database Initialization (Creates initial owner & 2 shops without deleting data)
+npm run prisma:init:prod
+
+# (Optional DEV only) Seed demo catalog data (destructive — deletes ALL existing data):
 #   PowerShell:  $env:ALLOW_DESTRUCTIVE_SEED="true"; npm run prisma:seed
 #   Bash:        ALLOW_DESTRUCTIVE_SEED=true npm run prisma:seed
-npm run prisma:seed
 ```
 
 ## Run
@@ -44,14 +46,17 @@ npm start
 ## Test
 
 ```bash
-# Ensure test database exists and migrations are applied
-npm test
+# Verify complete database integration workflow (create product, stock, sale, persistence)
+node prisma/verify-integration.js
+
+# Automated test suite (requires dedicated test database and ALLOW_DESTRUCTIVE_TESTS=true)
+$env:ALLOW_DESTRUCTIVE_TESTS="true"; npm test
 ```
 
-## Default credentials (after seeding)
+## Default credentials (after init)
 
-- **Email:** `owner@electronics.com`
-- **Password:** `owner123`
+- **Email:** `owner@electronics.com` (or value of `INIT_OWNER_EMAIL`)
+- **Password:** Configured via `INIT_OWNER_PASSWORD` (defaults to `Owner@12345` in dev)
 
 ## API Base URL
 

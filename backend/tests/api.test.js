@@ -24,6 +24,11 @@ async function loginAsOwner() {
 }
 
 beforeAll(async () => {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DESTRUCTIVE_TESTS !== 'true') {
+    throw new Error(
+      'Safety check: Refusing to run tests because this test suite deletes all database tables. Set ALLOW_DESTRUCTIVE_TESTS=true on a dedicated test/disposable database to run.'
+    );
+  }
   // Clean and seed test data
   await prisma.auditLog.deleteMany();
   await prisma.idempotencyKey.deleteMany();
