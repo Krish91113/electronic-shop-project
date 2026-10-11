@@ -16,6 +16,8 @@ model Shop {
   contactEmail     String?
   address          String?
   invoicePrefix    String            @default("INV")
+  invoiceFooter    String?
+  logoUrl          String?
   timezone         String            @default("Asia/Kolkata")
   pricingRule      Json?
   createdAt        DateTime          @default(now())
@@ -92,6 +94,7 @@ model Product {
   slug                String
   brand               String?
   model               String?
+  category            String?
   description         String?
   purchaseCost        Decimal         @db.Decimal(12, 2)
   defaultSellingPrice Decimal?        @db.Decimal(12, 2)

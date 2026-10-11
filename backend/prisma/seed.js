@@ -6,6 +6,34 @@ const prisma = new PrismaClient();
 async function seed() {
   console.log('🌱 Seeding database...');
 
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ Seed script refused to run in production.');
+    process.exit(1);
+  }
+
+  // This script DESTROYS all existing data. Require explicit confirmation
+  // outside of an automated test environment.
+  const confirmed =
+    process.env.NODE_ENV === 'test' ||
+    process.env.ALLOW_DESTRUCTIVE_SEED === 'true';
+
+  if (!confirmed) {
+    console.error(
+      [
+        '',
+        '❌ Refusing to run: this seed script deletes ALL existing data.',
+        '',
+        '   If this is a throwaway development database, re-run with:',
+        '     PowerShell:  $env:ALLOW_DESTRUCTIVE_SEED="true"; npm run prisma:seed',
+        '     Bash:        ALLOW_DESTRUCTIVE_SEED=true npm run prisma:seed',
+        '',
+        '   Never run this against a database that holds real data.',
+        '',
+      ].join('\n')
+    );
+    process.exit(1);
+  }
+
   // Clean existing data
   await prisma.auditLog.deleteMany();
   await prisma.idempotencyKey.deleteMany();

@@ -5,14 +5,22 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import path from "node:path";
 
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    tsconfigPaths(),
-  ],
+  plugins: [react(), tailwindcss(), tsconfigPaths()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
+    },
+  },
+  define: {
+    // Allow VITE_API_BASE_URL to be empty string to use proxy
   },
 });

@@ -30,6 +30,17 @@ export function errorHandler(err, req, res, _next) {
     });
   }
 
+  // Multer (file upload) errors
+  if (err.name === 'MulterError') {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'Image exceeds the 5MB size limit'
+        : `Upload error: ${err.message}`;
+    return res.status(400).json({
+      error: { code: 'UPLOAD_ERROR', message },
+    });
+  }
+
   // Zod validation
   if (err.name === 'ZodError') {
     return res.status(400).json({

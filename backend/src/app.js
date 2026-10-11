@@ -20,6 +20,7 @@ import reportRoutes from './modules/reports/reports.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import imageRoutes from './modules/images/images.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
+import taxCategoryRoutes from './modules/shops/taxCategories.routes.js';
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/images', imageRoutes);
 app.use('/api/v1/public', publicRoutes);
+app.use('/api/v1/tax-categories', taxCategoryRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

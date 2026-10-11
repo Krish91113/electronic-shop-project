@@ -32,6 +32,7 @@ export async function createProduct(shopId, data, userId) {
         slug,
         brand: data.brand || null,
         model: data.model || null,
+        category: data.category || null,
         description: data.description || null,
         purchaseCost: data.purchaseCost,
         defaultSellingPrice,
@@ -104,7 +105,7 @@ export async function updateProduct(shopId, productId, data, userId) {
 
   const updateData = {};
   const allowedFields = [
-    'barcode', 'name', 'brand', 'model', 'description',
+    'barcode', 'name', 'brand', 'model', 'category', 'description',
     'purchaseCost', 'defaultSellingPrice', 'pricingRule',
     'lowStockThreshold', 'warranty', 'taxCategoryId',
     'isPublished', 'isActive',

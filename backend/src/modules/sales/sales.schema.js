@@ -7,10 +7,15 @@ const saleItemSchema = z.object({
   discountAmount: z.number().min(0).optional().default(0),
 });
 
+const paymentMethodSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
+  z.enum(['CASH', 'UPI', 'CARD', 'OTHER'])
+);
+
 export const createSaleSchema = z.object({
   body: z.object({
     items: z.array(saleItemSchema).min(1),
-    paymentMethod: z.enum(['CASH', 'UPI', 'CARD', 'OTHER']),
+    paymentMethod: paymentMethodSchema,
     paymentReference: z.string().optional(),
     notes: z.string().optional(),
   }),

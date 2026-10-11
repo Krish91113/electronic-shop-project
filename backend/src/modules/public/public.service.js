@@ -9,6 +9,7 @@ const PUBLIC_PRODUCT_SELECT = {
   slug: true,
   brand: true,
   model: true,
+  category: true,
   description: true,
   defaultSellingPrice: true,
   warranty: true,

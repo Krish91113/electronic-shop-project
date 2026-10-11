@@ -46,9 +46,16 @@ cd backend
 npm install
 cp .env.example .env
 # Configure your DATABASE_URL in .env
-npx prisma migrate dev
+npx prisma generate
+npx prisma db push
+# Optionally load demo data (destructive — deletes existing rows):
+#   PowerShell: $env:ALLOW_DESTRUCTIVE_SEED="true"; npm run prisma:seed
 npm run dev
 ```
+
+The frontend talks to the backend at `VITE_API_BASE_URL` (default `http://localhost:4000`).
+Public catalogue slug defaults to `electronics-hub-main` (`VITE_PUBLIC_SHOP_SLUG`).
+Owner login (after seeding): `owner@electronics.com` / `owner123`.
 
 ---
 

@@ -1,21 +1,2066 @@
-import { useState } from 'react';
-import { Link, useParams, useNavigate } from '@tanstack/react-router';
-import { Package, TrendingUp, Wallet, TriangleAlert, Plus, ArrowUpRight, ScanLine, Pencil, Power, Boxes, Upload, CheckCircle2, Printer, Download, ArrowLeft } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { AppShell, PageHeader, MetricCard, DateRangeControl, SearchInput, StatusBadge, EmptyState, Field, Brand } from './shared';
-import { useDemo, money, sales, type Product } from './data';
-export function Dashboard(){const {products,shop}=useDemo();return <AppShell title="Dashboard"><PageHeader title="Good morning, Alex" subtitle={`Here’s what’s happening at ${shop} today. All figures are sample data.`}><DateRangeControl/><Button asChild><Link to="/billing"><Plus/>New Bill</Link></Button></PageHeader><div className="metric-grid"><MetricCard label="Today’s Sales" value="₹13,997" detail="2 sample sales today" icon={Wallet}/><MetricCard label="Gross Profit" value="₹3,797" detail="Illustrative figure only" icon={TrendingUp}/><MetricCard label="Products" value={String(products.length)} detail="Products in demo catalogue" icon={Package}/><MetricCard label="Low Stock" value={String(products.filter(p=>p.stock<=p.threshold).length)} detail="Including out-of-stock products" icon={TriangleAlert}/></div><div className="quick-actions"><Button asChild variant="outline"><Link to="/products/new"><Plus/>Add Product</Link></Button><Button asChild variant="outline"><Link to="/inventory/receive"><Boxes/>Receive Stock</Link></Button></div><div className="dashboard-grid"><section className="panel"><div className="panel-header"><div><h2>Sales overview</h2><small>A little perspective on your week · Sample</small></div><DateRangeControl/></div><div className="panel-body"><strong className="text-2xl">₹32,495</strong><svg className="sales-chart" viewBox="0 0 600 200" role="img" aria-label="Sample sales trend across seven days"><path className="chart-grid" d="M0 40H600M0 90H600M0 140H600M0 190H600"/><path className="chart-area" d="M0 155 100 120 200 138 300 65 400 85 500 30 600 58V200H0Z"/><path className="chart-line" d="M0 155 100 120 200 138 300 65 400 85 500 30 600 58"/></svg><div className="chart-labels">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=><span key={d}>{d}</span>)}</div></div></section><section className="panel"><div className="panel-header"><h2>Stock needs attention</h2><Button asChild variant="ghost" size="icon" aria-label="View inventory"><Link to="/inventory"><ArrowUpRight/></Link></Button></div><div className="panel-body">{products.filter(p=>p.stock<=p.threshold).map(p=><div className="stock-list" key={p.id}><img src={p.image} alt={p.name}/><div><h3>{p.name}</h3><p>{p.stock} units remaining</p></div><StatusBadge product={p}/></div>)}<Button asChild variant="outline" className="w-full mt-5"><Link to="/inventory/receive"><Plus/>Receive stock</Link></Button></div></section></div><section className="panel"><div className="panel-header"><h2>Recent sales</h2><Button asChild variant="link" size="sm"><Link to="/sales">View all<ArrowUpRight/></Link></Button></div><SalesTable records={sales}/></section></AppShell>}
-export function Products({inventory=false}:{inventory?:boolean}){const {products,setProducts}=useDemo();const [query,setQuery]=useState('');const [filter,setFilter]=useState('All stock');const [category,setCategory]=useState('All categories');const [adjust,setAdjust]=useState<Product|null>(null);const [qty,setQty]=useState(0);const [deactivate,setDeactivate]=useState<Product|null>(null);const items=products.filter(p=>(p.name+' '+p.barcode+' '+p.id).toLowerCase().includes(query.toLowerCase())&&(category==='All categories'||p.category===category)&&(filter==='All stock'||(filter==='Low stock'&&p.stock>0&&p.stock<=p.threshold)||(filter==='Out of stock'&&p.stock===0)));return <AppShell title={inventory?'Inventory':'Products'}><PageHeader title={inventory?'Inventory overview':'Products'} subtitle={inventory?'Keep the right products on your shelves. Demo quantities only.':'Your catalogue, organized. All products and prices are samples.'}><Button asChild><Link to={inventory?'/inventory/receive':'/products/new'}><Plus/>{inventory?'Receive Stock':'Add Product'}</Link></Button></PageHeader>{inventory&&<div className="metric-grid"><MetricCard label="Total SKUs" value={String(products.length)} detail="Sample catalogue" icon={Package}/><MetricCard label="Total units" value={String(products.reduce((s,p)=>s+p.stock,0))} detail="Local demo quantities" icon={Boxes}/><MetricCard label="Low-stock items" value={String(products.filter(p=>p.stock<=p.threshold).length)} detail="Including out of stock" icon={TriangleAlert}/></div>}<section className="panel"><div className="table-toolbar"><SearchInput value={query} onChange={setQuery}/><div className="filter-chips"><select aria-label="Stock filter" value={filter} onChange={e=>setFilter(e.target.value)}><option>All stock</option><option>Low stock</option><option>Out of stock</option></select><select aria-label="Category filter" value={category} onChange={e=>setCategory(e.target.value)}><option>All categories</option><option>Audio</option><option>Chargers</option><option>Computer Peripherals</option></select></div></div>{items.length?<><div className="table-scroll desktop-table"><table><thead><tr><th>Product</th><th>ID / Barcode</th>{!inventory&&<><th>Purchase cost</th><th>Selling price</th></>}<th>Stock</th>{inventory&&<th>Threshold</th>}<th>Status</th><th>Actions</th></tr></thead><tbody>{items.map(p=><tr key={p.id}><td><ProductCell p={p}/></td><td className="mono">{p.id}<br/>{p.barcode}</td>{!inventory&&<><td>{money(p.cost)}</td><td>{money(p.price)}</td></>}<td>{p.stock} units</td>{inventory&&<td>{p.threshold} units</td>}<td><StatusBadge product={p}/></td><td><ProductActions p={p} inventory={inventory} adjust={()=>{setAdjust(p);setQty(p.stock)}} deactivate={()=>setDeactivate(p)}/></td></tr>)}</tbody></table></div><div className="mobile-records">{items.map(p=><div className="mobile-record" key={p.id}><div className="mobile-record-top"><ProductCell p={p}/><ProductActions p={p} inventory={inventory} adjust={()=>{setAdjust(p);setQty(p.stock)}} deactivate={()=>setDeactivate(p)}/></div><div className="mobile-record-meta"><span>{p.stock} units · {money(p.price)}</span><StatusBadge product={p}/></div><p className="mono mt-2">{p.id} · {p.barcode}{!inventory&&` · Cost ${money(p.cost)}`}</p></div>)}</div></>:<EmptyState/>}</section><Dialog open={!!adjust} onOpenChange={v=>{if(!v)setAdjust(null)}}><DialogContent><DialogTitle>Adjust stock</DialogTitle><DialogDescription>Local demo adjustment for {adjust?.name}. No inventory is saved to a server.</DialogDescription><Field label="Available units"><Input type="number" min={0} value={qty} onChange={e=>setQty(Number(e.target.value))}/></Field><Button onClick={()=>{if(qty<0)return;if(adjust)setProducts(ps=>ps.map(p=>p.id===adjust.id?{...p,stock:qty}:p));setAdjust(null);toast.success('Demo action completed: stock adjusted locally.')}}>Confirm adjustment</Button></DialogContent></Dialog><Dialog open={!!deactivate} onOpenChange={v=>{if(!v)setDeactivate(null)}}><DialogContent><DialogTitle>{deactivate?.active?'Deactivate':'Activate'} product?</DialogTitle><DialogDescription>This changes the local demo catalogue only.</DialogDescription><Button onClick={()=>{setProducts(ps=>ps.map(p=>p.id===deactivate?.id?{...p,active:!p.active}:p));setDeactivate(null);toast.success('Demo action completed.')}}>Confirm</Button></DialogContent></Dialog></AppShell>}
-function ProductCell({p}:{p:Product}){return <div className="table-product"><img src={p.image} alt={p.name}/><div className="min-w-0"><h3>{p.name}</h3><small>{p.brand} · {p.model}</small></div></div>}
-function ProductActions({p,inventory,adjust,deactivate}:{p:Product;inventory:boolean;adjust:()=>void;deactivate:()=>void}){return <div className="table-actions">{inventory?<Button variant="ghost" size="icon" onClick={adjust} aria-label={`Adjust ${p.name}`}><Boxes/></Button>:<><Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`}><Link to="/products/$id/edit" params={{id:p.id}}><Pencil/></Link></Button><Button variant="ghost" size="icon" onClick={deactivate} aria-label={`${p.active?'Deactivate':'Activate'} ${p.name}`}><Power/></Button></>}</div>}
-export function ProductForm(){const {id}=useParams({strict:false});const {products,setProducts}=useDemo();const existing=products.find(p=>p.id===id);const navigate=useNavigate();const [visible,setVisible]=useState(existing?.visible??true);const [image,setImage]=useState(existing?.image??'');const [cost,setCost]=useState(existing?.cost??0);if(id&&!existing)return <AppShell title="Product"><EmptyState title="Product not found"/></AppShell>;return <AppShell title="Products"><div className="form-wrap"><PageHeader title={existing?'Edit product':'Add product'} subtitle="Product details for your local demo catalogue."/><form onSubmit={e=>{e.preventDefault();const d=new FormData(e.currentTarget);const number=(key:string)=>Number(d.get(key));const val=(key:string)=>String(d.get(key)??'');if(number('price')<0||number('stock')<0||cost<0)return;const p:Product={id:existing?.id??`EL-${String(products.length+1).padStart(3,'0')}`,name:val('name'),brand:val('brand'),model:val('model'),category:val('category'),description:val('description'),barcode:val('barcode'),cost,price:number('price'),stock:number('stock'),threshold:number('threshold'),warranty:val('warranty'),active:existing?.active??true,visible,image};setProducts(ps=>existing?ps.map(x=>x.id===id?p:x):[...ps,p]);toast.success('Demo action completed: product saved locally.');navigate({to:'/products'});}}><div className="panel"><div className="panel-body"><section className="form-section"><h2>Basic details</h2><div className="form-grid"><Field label="Product name"><Input name="name" required defaultValue={existing?.name} placeholder="e.g. Wireless headphones"/></Field><Field label="Category"><select name="category" defaultValue={existing?.category??'Audio'}><option>Audio</option><option>Chargers</option><option>Accessories</option><option>Computer Peripherals</option></select></Field><Field label="Brand"><Input name="brand" required defaultValue={existing?.brand}/></Field><Field label="Model"><Input name="model" required defaultValue={existing?.model}/></Field><div className="form-full"><Field label="Description"><textarea name="description" defaultValue={existing?.description}/></Field></div></div></section><section className="form-section"><h2>Identification</h2><div className="form-grid"><Field label="Manufacturer barcode"><Input name="barcode" required defaultValue={existing?.barcode}/></Field><Field label="Internal product ID"><Input readOnly value={existing?.id??'Generated after save'}/></Field></div><div className="hint">A manufacturer barcode identifies a product; it does not necessarily fill all product details automatically.</div></section><section className="form-section"><h2>Pricing & inventory</h2><div className="form-grid"><Field label="Purchase cost (₹)"><Input type="number" min={0} value={cost} onChange={e=>setCost(Number(e.target.value))} required/></Field><Field label="Default selling price (₹)"><Input name="price" type="number" min={0} defaultValue={existing?.price} required/></Field><Field label="Initial quantity"><Input name="stock" type="number" min={0} defaultValue={existing?.stock??0} required/></Field><Field label="Low-stock threshold"><Input name="threshold" type="number" min={0} defaultValue={existing?.threshold??5} required/></Field><Field label="Pricing rule"><select><option>Manual selling price</option><option>Proposed +₹100 markup below ₹1,000</option></select></Field><Field label="Warranty"><Input name="warranty" defaultValue={existing?.warranty} placeholder="e.g. 1 year limited warranty"/></Field></div>{cost<1000&&<div className="hint">For products below ₹1,000, the proposed default markup is +₹100. This is not a GST rule; pricing is illustrative only.</div>}<div className="toggle-field"><div><h3>Public catalogue visibility</h3><p>Show this product in the local customer catalogue.</p></div><Switch checked={visible} onCheckedChange={setVisible} aria-label="Public catalogue visibility"/></div></section><section className="form-section"><h2>Product image</h2><label className="dropzone">{image?<img src={image} alt="Selected product preview"/>:<Upload size={25}/>}<span>Select an image or drop a file here</span><input type="file" accept="image/*" aria-label="Product image" onChange={e=>{const f=e.target.files?.[0];if(f){const r=new FileReader();r.onload=()=>setImage(String(r.result));r.readAsDataURL(f)}}}/><small>Cloudinary upload integration will be added later.</small></label></section></div></div><div className="form-actions"><Button asChild variant="outline"><Link to="/products">Cancel</Link></Button><Button type="submit">Save product</Button></div></form></div></AppShell>}
-export function ReceiveStock(){const {products}=useDemo();const [barcode,setBarcode]=useState('');const [done,setDone]=useState(false);const matched=products.find(p=>p.barcode===barcode);return <AppShell title="Receive Stock"><div className="receive-wrap"><PageHeader title="Receive stock" subtitle="Match a product and record a sample delivery."/><div className="panel panel-body">{done?<div className="success-state"><CheckCircle2 size={45}/><h2>Demo action completed</h2><p>Delivery confirmed locally. No inventory was updated or saved.</p><Button onClick={()=>{setDone(false);setBarcode('')}}>Receive another product</Button></div>:<><div className="barcode-row"><Field label="Manufacturer barcode"><Input aria-label="Manufacturer barcode" value={barcode} onChange={e=>setBarcode(e.target.value)} placeholder="Enter a barcode"/></Field><Button className="self-end" onClick={()=>{setBarcode(products[0]?.barcode??'');toast.info('Sample scanner input simulated.')}}><ScanLine/>Scan</Button></div>{matched?<div className="hint"><ProductCell p={matched}/></div>:barcode?<div className="hint"><h3>Product not found — register product</h3><Button asChild variant="link"><Link to="/products/new">Register product<Plus/></Link></Button></div>:<p className="sample-caption">Scan simulates the first sample product. No hardware is connected.</p>}<form className="mt-6" onSubmit={e=>{e.preventDefault();if(matched)setDone(true)}}><div className="form-grid"><Field label="Quantity received"><Input type="number" min={1} required placeholder="0"/></Field><Field label="Unit purchase cost (₹)"><Input type="number" min={0} required defaultValue={matched?.cost} key={matched?.id}/></Field><Field label="Supplier (optional)"><Input placeholder="Supplier name"/></Field><Field label="Reference (optional)"><Input placeholder="Delivery reference"/></Field></div><Button type="submit" disabled={!matched} className="w-full mt-6">Confirm receipt</Button></form></>}</div></div></AppShell>}
-function SalesTable({records}:{records:typeof sales}){return <><div className="desktop-table table-scroll"><table><thead><tr><th>Invoice</th><th>Date</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th/></tr></thead><tbody>{records.map(s=><tr key={s.id}><td><Link to="/sales/$id" params={{id:s.id}} className="text-primary font-medium">{s.id}</Link></td><td>{s.date}</td><td>{s.items}</td><td className="font-medium">{money(s.total)}</td><td>{s.payment}</td><td><span className="status status-success"><span/>{s.status}</span></td><td><Button asChild variant="ghost" size="icon" aria-label={`View ${s.id}`}><Link to="/sales/$id" params={{id:s.id}}><ArrowUpRight/></Link></Button></td></tr>)}</tbody></table></div><div className="mobile-records">{records.map(s=><Link to="/sales/$id" params={{id:s.id}} key={s.id} className="mobile-record block"><div className="mobile-record-top"><strong className="text-primary">{s.id}</strong><strong>{money(s.total)}</strong></div><div className="mobile-record-meta"><span>{s.date} · {s.payment}</span><span className="status status-success"><span/>{s.status}</span></div></Link>)}</div></>}
-export function Sales(){const [query,setQuery]=useState('');const [date,setDate]=useState('All dates');const records=sales.filter(s=>s.id.toLowerCase().includes(query.toLowerCase())&&(date==='All dates'||s.date==='10 Oct 2026'));return <AppShell title="Sales History"><PageHeader title="Sales history" subtitle="A simple record of your sales. Sample invoices only."/><div className="panel"><div className="table-toolbar"><SearchInput value={query} onChange={setQuery} placeholder="Search by invoice..."/><select aria-label="Sales date filter" value={date} onChange={e=>setDate(e.target.value)}><option>All dates</option><option>Today · 10 Oct</option></select></div>{records.length?<SalesTable records={records}/>:<EmptyState title="No sales found" detail="Try another invoice number or date."/>}</div></AppShell>}
-export function Invoice(){const {id}=useParams({strict:false});const {products,shop}=useDemo();const sale=sales.find(s=>s.id===id);const rows=sale?.id==='INV-1024'?products.slice(0,2):products.filter(p=>p.id===(sale?.id==='INV-1023'?'EL-003':'EL-002'));return <AppShell title="Invoice"><PageHeader title="Invoice preview" subtitle="Sample invoice · Not a financial document"><Button asChild variant="outline"><Link to="/sales"><ArrowLeft/>Back to sales</Link></Button><Button variant="outline" onClick={()=>window.print()}><Download/>Download PDF</Button><Button onClick={()=>window.print()}><Printer/>Print</Button></PageHeader>{sale?<div className="invoice"><div className="invoice-header"><div><Brand/><h3 className="mt-5">{shop}</h3><p>Shop address · Contact details placeholder</p></div><div><h2>INVOICE</h2><p>{sale.id}<br/>{sale.date}<br/>Payment: {sale.payment}</p></div></div><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>{rows.map(p=><tr key={p.id}><td>{p.name}</td><td>1</td><td>{money(p.price)}</td><td>{money(p.price)}</td></tr>)}</tbody></table><div className="invoice-summary"><div className="summary-row"><span>Subtotal</span><span>{money(sale.total)}</span></div><div className="summary-row"><span>Discount</span><span>₹0</span></div><div className="summary-row"><span>Applicable tax</span><span>Not calculated · Demo</span></div><div className="summary-row summary-total"><span>Total</span><span>{money(sale.total)}</span></div></div><div className="invoice-footer">Thank you for stopping by.<br/>Sample invoice only. PDF uses your browser’s “Save as PDF” option.</div></div>:<EmptyState title="Invoice not found" detail="Choose a sample invoice from sales history."/>}</AppShell>}
-export function Reports(){return <AppShell title="Profit & Loss"><PageHeader title="Profit & loss" subtitle="A concise overview. All figures are illustrative sample data, not accounting records."><DateRangeControl/></PageHeader><div className="metric-grid"><MetricCard label="Net Sales" value="₹32,495" detail="Sample sales less sample returns" icon={Wallet}/><MetricCard label="Cost of Goods Sold" value="₹23,200" detail="Illustrative product costs" icon={Package}/><MetricCard label="Gross Profit" value="₹9,295" detail="Sample net sales − sample costs" icon={TrendingUp}/><MetricCard label="Net Profit" value="₹6,795" detail="After ₹2,500 sample expenses" icon={Wallet}/></div><section className="panel"><div className="panel-header"><h2>At a glance</h2><span className="demo-pill">Sample breakdown</span></div><div className="panel-body">{[['Net sales','Sales less returns and discounts','₹32,495'],['Cost of goods sold','Illustrative cost of sold products','− ₹23,200'],['Gross profit','Net sales − cost of goods sold','₹9,295'],['Operating expenses','Sample shop expenses','− ₹2,500'],['Net profit','Gross profit − operating expenses','₹6,795']].map(([a,b,c])=><div className="report-row" key={a}><div><strong>{a}</strong><small>{b}</small></div><strong>{c}</strong></div>)}<div className="hint">This prototype does not calculate legally accurate accounts, tax, or financial reports.</div></div></section></AppShell>}
-export function Settings(){const {shop}=useDemo();return <AppShell title="Settings"><div className="settings-layout"><PageHeader title="Shop settings" subtitle={`The little details that make ${shop} yours.`}/><form key={shop} onSubmit={e=>{e.preventDefault();toast.success('Demo action completed: settings applied locally.')}}><div className="panel panel-body"><section className="form-section"><h2>Shop information</h2><div className="form-grid"><Field label="Shop name"><Input required defaultValue={shop}/></Field><Field label="Contact number"><Input type="tel" placeholder="Your shop phone"/></Field><Field label="Contact email"><Input type="email" placeholder="Your shop email"/></Field><Field label="Shop address"><Input placeholder="Your shop address"/></Field></div></section><section className="form-section"><h2>Invoice preferences</h2><div className="form-grid"><Field label="Invoice header"><Input defaultValue={`Volt Electronics · ${shop}`}/></Field><Field label="Invoice footer"><Input defaultValue="Thank you for visiting!"/></Field><Field label="Default low-stock threshold"><Input type="number" min={0} defaultValue={5}/></Field></div></section><div className="toggle-field"><div><h3>Public catalogue</h3><p>Catalogue visibility preference · Demo only</p></div><Switch defaultChecked aria-label="Public catalogue enabled"/></div></div><div className="form-actions"><Button type="submit">Save changes</Button></div></form></div></AppShell>}
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Link, useParams, useNavigate } from "@tanstack/react-router";
+import {
+  Package,
+  TrendingUp,
+  Wallet,
+  TriangleAlert,
+  Plus,
+  ArrowUpRight,
+  ScanLine,
+  Pencil,
+  Power,
+  Boxes,
+  Upload,
+  CheckCircle2,
+  Printer,
+  Download,
+  ArrowLeft,
+  RefreshCw,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ArrowDownToLine,
+  Store,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { AppShell, PageHeader, MetricCard, SearchInput, EmptyState, Field, Brand } from "./shared";
+import { useAuth } from "@/lib/auth";
+import {
+  products as productsApi,
+  inventory as inventoryApi,
+  taxCategories as taxCategoriesApi,
+  images as imagesApi,
+  sales as salesApi,
+  dashboard as dashboardApi,
+  reports as reportsApi,
+  shops as shopsApi,
+  getErrorMessage,
+  type Product as ApiProduct,
+  type InventoryItem,
+  type StockMovement,
+  type Sale,
+  type ProfitLossReport,
+} from "@/lib/api";
+
+type Product = ApiProduct;
+
+// ─── Shared helpers ───────────────────────────────────────────────
+
+const fmt = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+function SkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-10 rounded bg-muted animate-pulse" />
+      ))}
+    </div>
+  );
+}
+
+function ErrorAlert({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+      <AlertCircle size={18} className="mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">{message}</div>
+      {onRetry && (
+        <Button variant="ghost" size="sm" onClick={onRetry} className="shrink-0">
+          <RefreshCw size={14} /> Retry
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  onPage: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-end gap-2 px-4 py-3 border-t text-sm text-muted-foreground">
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={page <= 1}
+        onClick={() => onPage(page - 1)}
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={16} />
+      </Button>
+      <span>
+        Page {page} of {totalPages}
+      </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={page >= totalPages}
+        onClick={() => onPage(page + 1)}
+        aria-label="Next page"
+      >
+        <ChevronRight size={16} />
+      </Button>
+    </div>
+  );
+}
+
+/** Inline status badge for API products (using isActive + optional stock quantity) */
+function ApiStatusBadge({
+  isActive,
+  qty,
+  threshold,
+}: {
+  isActive: boolean;
+  qty?: number | undefined;
+  threshold?: number | undefined;
+}) {
+  let label: string;
+  let cls: string;
+  if (!isActive) {
+    label = "Inactive";
+    cls = "status status-neutral";
+  } else if (qty === 0) {
+    label = "Out of stock";
+    cls = "status status-danger";
+  } else if (qty !== undefined && threshold !== undefined && qty <= threshold) {
+    label = "Low stock";
+    cls = "status status-warning";
+  } else {
+    label = "In stock";
+    cls = "status status-success";
+  }
+  return (
+    <span className={cls}>
+      <span />
+      {label}
+    </span>
+  );
+}
+
+function ProductThumb({ product }: { product: ApiProduct }) {
+  const img = product.images?.find((i) => i.isPrimary) ?? product.images?.[0];
+  return (
+    <div className="table-product">
+      {img ? (
+        <img
+          src={img.url}
+          alt={product.name}
+          width={40}
+          height={40}
+          className="rounded object-cover"
+        />
+      ) : (
+        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+          <Package size={18} className="text-muted-foreground" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <h3 className="truncate">{product.name}</h3>
+        <small className="text-muted-foreground">
+          {[product.brand, product.model].filter(Boolean).join(" · ")}
+        </small>
+      </div>
+    </div>
+  );
+}
+
+// ─── ProductsPage ─────────────────────────────────────────────────
+
+export function ProductsPage() {
+  useAuth(); // ensure shop context is active
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isActiveFilter, setIsActiveFilter] = useState<boolean | undefined>(undefined);
+  const [page, setPage] = useState(1);
+
+  // Debounce search
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 350);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["products", debouncedSearch, isActiveFilter, page],
+    queryFn: () =>
+      productsApi.list({ search: debouncedSearch || undefined, isActive: isActiveFilter, page }),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      productsApi.update(id, { isActive }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Product status updated.");
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
+  const filterLabel =
+    isActiveFilter === true ? "Active" : isActiveFilter === false ? "Inactive" : "All";
+
+  return (
+    <AppShell title="Products">
+      <PageHeader title="Products" subtitle="Your full product catalogue.">
+        <Button asChild>
+          <Link to="/products/new">
+            <Plus />
+            Add Product
+          </Link>
+        </Button>
+      </PageHeader>
+
+      <section className="panel">
+        <div className="table-toolbar">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or barcode…"
+          />
+          <div className="filter-chips">
+            {(["All", "Active", "Inactive"] as const).map((label) => (
+              <button
+                key={label}
+                className={`filter-chip ${filterLabel === label ? "filter-chip-active" : ""}`}
+                onClick={() => {
+                  setIsActiveFilter(
+                    label === "All" ? undefined : label === "Active" ? true : false,
+                  );
+                  setPage(1);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <SkeletonRows rows={5} />
+        ) : isError ? (
+          <div className="p-4">
+            <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+          </div>
+        ) : !data?.products.length ? (
+          <EmptyState
+            title="No products found"
+            detail="Try a different search or add a new product."
+          />
+        ) : (
+          <>
+            <div className="table-scroll desktop-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Barcode</th>
+                    <th>Purchase cost</th>
+                    <th>Selling price</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.products.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <ProductThumb product={p} />
+                      </td>
+                      <td className="mono">{p.barcode ?? "—"}</td>
+                      <td>{fmt(p.purchaseCost)}</td>
+                      <td>{p.defaultSellingPrice != null ? fmt(p.defaultSellingPrice) : "—"}</td>
+                      <td>{p.inventory != null ? `${p.inventory.quantity} units` : "—"}</td>
+                      <td>
+                        <ApiStatusBadge
+                          isActive={p.isActive}
+                          qty={p.inventory?.quantity}
+                          threshold={p.lowStockThreshold}
+                        />
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`}>
+                            <Link to="/products/$id/edit" params={{ id: p.id }}>
+                              <Pencil size={15} />
+                            </Link>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
+                            disabled={toggleMutation.isPending}
+                            onClick={() =>
+                              toggleMutation.mutate({ id: p.id, isActive: !p.isActive })
+                            }
+                          >
+                            <Power size={15} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="mobile-records">
+              {data.products.map((p) => (
+                <div className="mobile-record" key={p.id}>
+                  <div className="mobile-record-top">
+                    <ProductThumb product={p} />
+                    <div className="table-actions">
+                      <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`}>
+                        <Link to="/products/$id/edit" params={{ id: p.id }}>
+                          <Pencil size={15} />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
+                        disabled={toggleMutation.isPending}
+                        onClick={() => toggleMutation.mutate({ id: p.id, isActive: !p.isActive })}
+                      >
+                        <Power size={15} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mobile-record-meta">
+                    <span>
+                      {p.inventory != null ? `${p.inventory.quantity} units` : "—"} ·{" "}
+                      {p.defaultSellingPrice != null ? fmt(p.defaultSellingPrice) : "—"}
+                    </span>
+                    <ApiStatusBadge
+                      isActive={p.isActive}
+                      qty={p.inventory?.quantity}
+                      threshold={p.lowStockThreshold}
+                    />
+                  </div>
+                  <p className="mono mt-2 text-xs text-muted-foreground">
+                    {p.barcode ?? "No barcode"} · Cost {fmt(p.purchaseCost)}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <Pagination
+              page={data.pagination.page}
+              totalPages={data.pagination.totalPages}
+              onPage={setPage}
+            />
+          </>
+        )}
+      </section>
+    </AppShell>
+  );
+}
+
+// ─── ProductFormPage ──────────────────────────────────────────────
+
+export function ProductFormPage() {
+  const { id } = useParams({ strict: false }) as { id?: string };
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  // Fetch existing product for edit mode
+  const { data: existing, isLoading: loadingProduct } = useQuery({
+    queryKey: ["product", id],
+    queryFn: () => productsApi.get(id!),
+    enabled: !!id,
+  });
+
+  // Fetch tax categories
+  const { data: taxCats } = useQuery({
+    queryKey: ["tax-categories"],
+    queryFn: () => taxCategoriesApi.list(),
+  });
+
+  const [purchaseCost, setPurchaseCost] = useState(0);
+  const [isPublished, setIsPublished] = useState(true);
+  const [taxCategoryId, setTaxCategoryId] = useState<string>("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (existing) {
+      setPurchaseCost(existing.purchaseCost);
+      setIsPublished(existing.isPublished);
+      setTaxCategoryId(existing.taxCategoryId ?? "");
+      const primaryImg = existing.images?.find((i) => i.isPrimary) ?? existing.images?.[0];
+      if (primaryImg) setImagePreview(primaryImg.url);
+    }
+  }, [existing]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const str = (key: string) => (form.get(key) as string | null) ?? "";
+    const num = (key: string) => Number(form.get(key));
+
+    const name = str("name").trim();
+    if (!name) {
+      toast.error("Product name is required.");
+      return;
+    }
+    if (purchaseCost < 0) {
+      toast.error("Purchase cost cannot be negative.");
+      return;
+    }
+    const sellingPrice = num("defaultSellingPrice");
+    if (sellingPrice < 0) {
+      toast.error("Selling price cannot be negative.");
+      return;
+    }
+
+    const payload = {
+      name,
+      barcode: str("barcode") || undefined,
+      brand: str("brand") || undefined,
+      model: str("model") || undefined,
+      category: str("category") || undefined,
+      description: str("description") || undefined,
+      purchaseCost,
+      defaultSellingPrice: sellingPrice || undefined,
+      lowStockThreshold: num("lowStockThreshold") || 5,
+      warranty: str("warranty") || undefined,
+      taxCategoryId: taxCategoryId || undefined,
+      isPublished,
+    };
+
+    setSubmitting(true);
+    try {
+      if (id) {
+        // Edit mode
+        const updated = await productsApi.update(id, payload);
+        // Upload image if selected
+        if (imageFile) {
+          await imagesApi.upload(updated.id, imageFile);
+        }
+        qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["product", id] });
+        toast.success("Product updated successfully.");
+      } else {
+        // Create mode
+        const initialStock = num("initialStock");
+        const created = await productsApi.create({
+          ...payload,
+          initialStock: initialStock > 0 ? initialStock : undefined,
+        });
+        if (imageFile) {
+          await imagesApi.upload(created.id, imageFile);
+        }
+        qc.invalidateQueries({ queryKey: ["products"] });
+        toast.success("Product created successfully.");
+      }
+      navigate({ to: "/products" });
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  if (id && loadingProduct) {
+    return (
+      <AppShell title="Products">
+        <div className="form-wrap">
+          <SkeletonRows rows={8} />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (id && !existing && !loadingProduct) {
+    return (
+      <AppShell title="Products">
+        <EmptyState title="Product not found" detail="This product may have been removed." />
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell title="Products">
+      <div className="form-wrap">
+        <PageHeader
+          title={id ? "Edit product" : "Add product"}
+          subtitle={
+            id
+              ? "Update this product's details and pricing."
+              : "Create a new product in your catalogue."
+          }
+        />
+        <form onSubmit={handleSubmit}>
+          <div className="panel">
+            <div className="panel-body">
+              {/* Basic details */}
+              <section className="form-section">
+                <h2>Basic details</h2>
+                <div className="form-grid">
+                  <Field label="Product name *">
+                    <Input
+                      name="name"
+                      required
+                      defaultValue={existing?.name}
+                      placeholder="e.g. Wireless Headphones"
+                    />
+                  </Field>
+                  <Field label="Category">
+                    <Input
+                      name="category"
+                      defaultValue={existing?.category}
+                      placeholder="e.g. Audio"
+                    />
+                  </Field>
+                  <Field label="Brand">
+                    <Input name="brand" defaultValue={existing?.brand} placeholder="e.g. Sony" />
+                  </Field>
+                  <Field label="Model">
+                    <Input
+                      name="model"
+                      defaultValue={existing?.model}
+                      placeholder="e.g. WH-1000XM5"
+                    />
+                  </Field>
+                  <div className="form-full">
+                    <Field label="Description">
+                      <Textarea
+                        name="description"
+                        defaultValue={existing?.description}
+                        rows={3}
+                        placeholder="Brief product description…"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </section>
+
+              {/* Identification */}
+              <section className="form-section">
+                <h2>Identification</h2>
+                <div className="form-grid">
+                  <Field label="Barcode">
+                    <Input
+                      name="barcode"
+                      defaultValue={existing?.barcode}
+                      placeholder="Manufacturer barcode"
+                    />
+                  </Field>
+                  {id && (
+                    <Field label="Product ID">
+                      <Input readOnly value={existing?.id ?? "—"} className="bg-muted" />
+                    </Field>
+                  )}
+                </div>
+              </section>
+
+              {/* Pricing & inventory */}
+              <section className="form-section">
+                <h2>Pricing &amp; inventory</h2>
+                <div className="form-grid">
+                  <Field label="Purchase cost (₹) *">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={purchaseCost}
+                      onChange={(e) => setPurchaseCost(Number(e.target.value))}
+                      required
+                    />
+                  </Field>
+                  <Field label="Default selling price (₹)">
+                    <Input
+                      name="defaultSellingPrice"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      defaultValue={existing?.defaultSellingPrice}
+                    />
+                  </Field>
+                  {!id && (
+                    <Field label="Initial stock">
+                      <Input name="initialStock" type="number" min={0} defaultValue={0} />
+                    </Field>
+                  )}
+                  <Field label="Low-stock threshold">
+                    <Input
+                      name="lowStockThreshold"
+                      type="number"
+                      min={0}
+                      defaultValue={existing?.lowStockThreshold ?? 5}
+                    />
+                  </Field>
+                  <Field label="Warranty">
+                    <Input
+                      name="warranty"
+                      defaultValue={existing?.warranty}
+                      placeholder="e.g. 1 year limited"
+                    />
+                  </Field>
+                  <Field label="Tax category">
+                    <Select value={taxCategoryId} onValueChange={setTaxCategoryId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {taxCats?.map((tc) => (
+                          <SelectItem key={tc.id} value={tc.id}>
+                            {tc.name} ({tc.rate}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                {purchaseCost > 0 && purchaseCost < 1000 && (
+                  <div className="hint">Proposed markup: +₹100 (default rule)</div>
+                )}
+                <div className="toggle-field">
+                  <div>
+                    <h3>Published in catalogue</h3>
+                    <p>Show this product on the public storefront.</p>
+                  </div>
+                  <Switch
+                    checked={isPublished}
+                    onCheckedChange={setIsPublished}
+                    aria-label="Published in catalogue"
+                  />
+                </div>
+              </section>
+
+              {/* Image */}
+              <section className="form-section">
+                <h2>Product image</h2>
+                <label className="dropzone">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Product preview"
+                      className="max-h-40 rounded object-contain"
+                    />
+                  ) : (
+                    <Upload size={25} />
+                  )}
+                  <span>Select an image or drop a file here</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    aria-label="Product image"
+                    onChange={handleImageChange}
+                  />
+                  {!id && <small>Image will be uploaded after the product is created.</small>}
+                </label>
+              </section>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <Button asChild variant="outline" type="button">
+              <Link to="/products">Cancel</Link>
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving…" : id ? "Save changes" : "Create product"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </AppShell>
+  );
+}
+
+// ─── InventoryPage ────────────────────────────────────────────────
+
+export function InventoryPage() {
+  useAuth();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<"all" | "low" | "movements">("all");
+  const [page, setPage] = useState(1);
+  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [adjustDelta, setAdjustDelta] = useState(0);
+  const [adjustReason, setAdjustReason] = useState("");
+
+  const allQuery = useQuery({
+    queryKey: ["inventory", "all", page],
+    queryFn: () => inventoryApi.list({ page }),
+    enabled: tab === "all",
+  });
+
+  const lowQuery = useQuery({
+    queryKey: ["inventory", "low", page],
+    queryFn: () => inventoryApi.lowStock({ page }),
+    enabled: tab === "low",
+  });
+
+  const movementsQuery = useQuery({
+    queryKey: ["inventory", "movements", page],
+    queryFn: () => inventoryApi.movements({ page }),
+    enabled: tab === "movements",
+  });
+
+  const allItems = allQuery.data?.items ?? [];
+  const lowItems = lowQuery.data?.items ?? [];
+  const movements = movementsQuery.data?.movements ?? [];
+
+  // Metrics from "all" query
+  const totalSKUs = allQuery.data?.pagination.total ?? 0;
+  const totalUnits = allItems.reduce((s, i) => s + i.quantity, 0);
+  const lowStockCount = allItems.filter((i) => i.quantity <= i.product.lowStockThreshold).length;
+
+  const adjustMutation = useMutation({
+    mutationFn: (vars: { productId: string; delta: number; reason: string }) =>
+      inventoryApi.adjust({
+        productId: vars.productId,
+        quantityDelta: vars.delta,
+        movementType: "ADJUSTMENT",
+        notes: vars.reason || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Stock adjusted.");
+      setAdjustItem(null);
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
+  function renderInventoryTable(
+    items: InventoryItem[],
+    isLoading: boolean,
+    isError: boolean,
+    error: unknown,
+    refetch: () => void,
+  ) {
+    if (isLoading) return <SkeletonRows />;
+    if (isError)
+      return (
+        <div className="p-4">
+          <ErrorAlert message={getErrorMessage(error)} onRetry={refetch} />
+        </div>
+      );
+    if (!items.length)
+      return <EmptyState title="No items" detail="Nothing to show for this view." />;
+    return (
+      <>
+        <div className="table-scroll desktop-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Barcode</th>
+                <th>Qty</th>
+                <th>Threshold</th>
+                <th>Cost</th>
+                <th>Selling</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <div className="table-product">
+                      {item.product.images?.[0] ? (
+                        <img
+                          src={item.product.images[0].url}
+                          alt={item.product.name}
+                          width={36}
+                          height={36}
+                          className="rounded object-cover"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded bg-muted flex items-center justify-center">
+                          <Package size={16} className="text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="truncate">{item.product.name}</span>
+                    </div>
+                  </td>
+                  <td className="mono">{item.product.barcode ?? "—"}</td>
+                  <td className="font-medium">{item.quantity}</td>
+                  <td>{item.product.lowStockThreshold}</td>
+                  <td>{fmt(item.product.purchaseCost)}</td>
+                  <td>
+                    {item.product.defaultSellingPrice != null
+                      ? fmt(item.product.defaultSellingPrice)
+                      : "—"}
+                  </td>
+                  <td>
+                    <ApiStatusBadge
+                      isActive
+                      qty={item.quantity}
+                      threshold={item.product.lowStockThreshold}
+                    />
+                  </td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Adjust stock for ${item.product.name}`}
+                      onClick={() => {
+                        setAdjustItem(item);
+                        setAdjustDelta(0);
+                        setAdjustReason("");
+                      }}
+                    >
+                      <Boxes size={15} />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Mobile */}
+        <div className="mobile-records">
+          {items.map((item) => (
+            <div className="mobile-record" key={item.id}>
+              <div className="mobile-record-top">
+                <span className="font-medium truncate">{item.product.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setAdjustItem(item);
+                    setAdjustDelta(0);
+                    setAdjustReason("");
+                  }}
+                >
+                  <Boxes size={15} />
+                </Button>
+              </div>
+              <div className="mobile-record-meta">
+                <span>
+                  {item.quantity} units · threshold {item.product.lowStockThreshold}
+                </span>
+                <ApiStatusBadge
+                  isActive
+                  qty={item.quantity}
+                  threshold={item.product.lowStockThreshold}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <AppShell title="Inventory">
+      <PageHeader title="Inventory" subtitle="Track stock levels across your catalogue.">
+        <Button asChild>
+          <Link to="/inventory/receive">
+            <ArrowDownToLine size={16} />
+            Receive Stock
+          </Link>
+        </Button>
+      </PageHeader>
+
+      {/* Metrics */}
+      <div className="metric-grid">
+        <MetricCard
+          label="Total SKUs"
+          value={String(totalSKUs)}
+          detail="Products with inventory records"
+          icon={Package}
+        />
+        <MetricCard
+          label="Total units"
+          value={String(totalUnits)}
+          detail="Across all products (current page)"
+          icon={Boxes}
+        />
+        <MetricCard
+          label="Low-stock"
+          value={String(lowStockCount)}
+          detail="At or below threshold (current page)"
+          icon={TriangleAlert}
+        />
+      </div>
+
+      <section className="panel">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => {
+            setTab(v as typeof tab);
+            setPage(1);
+          }}
+        >
+          <div className="px-4 pt-4">
+            <TabsList>
+              <TabsTrigger value="all">All Stock</TabsTrigger>
+              <TabsTrigger value="low">Low Stock</TabsTrigger>
+              <TabsTrigger value="movements">Movements</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="all">
+            {renderInventoryTable(
+              allItems,
+              allQuery.isLoading,
+              allQuery.isError,
+              allQuery.error,
+              () => allQuery.refetch(),
+            )}
+            <Pagination
+              page={page}
+              totalPages={allQuery.data?.pagination.totalPages ?? 1}
+              onPage={setPage}
+            />
+          </TabsContent>
+
+          <TabsContent value="low">
+            {renderInventoryTable(
+              lowItems,
+              lowQuery.isLoading,
+              lowQuery.isError,
+              lowQuery.error,
+              () => lowQuery.refetch(),
+            )}
+            <Pagination
+              page={page}
+              totalPages={lowQuery.data?.pagination.totalPages ?? 1}
+              onPage={setPage}
+            />
+          </TabsContent>
+
+          <TabsContent value="movements">
+            {movementsQuery.isLoading ? (
+              <SkeletonRows />
+            ) : movementsQuery.isError ? (
+              <div className="p-4">
+                <ErrorAlert
+                  message={getErrorMessage(movementsQuery.error)}
+                  onRetry={() => movementsQuery.refetch()}
+                />
+              </div>
+            ) : !movements.length ? (
+              <EmptyState title="No movements" detail="Stock movements will appear here." />
+            ) : (
+              <>
+                <div className="table-scroll desktop-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Type</th>
+                        <th>Qty delta</th>
+                        <th>Unit cost</th>
+                        <th>Notes</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movements.map((mv: StockMovement) => (
+                        <tr key={mv.id}>
+                          <td>{mv.product?.name ?? mv.productId}</td>
+                          <td>
+                            <span className="mono text-xs">{mv.movementType}</span>
+                          </td>
+                          <td
+                            className={
+                              mv.quantityDelta >= 0
+                                ? "text-green-600 font-medium"
+                                : "text-destructive font-medium"
+                            }
+                          >
+                            {mv.quantityDelta >= 0 ? "+" : ""}
+                            {mv.quantityDelta}
+                          </td>
+                          <td>{fmt(mv.unitCost)}</td>
+                          <td className="text-muted-foreground text-sm">{mv.notes ?? "—"}</td>
+                          <td className="text-sm text-muted-foreground">
+                            {new Date(mv.createdAt).toLocaleDateString("en-IN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={page}
+                  totalPages={movementsQuery.data?.pagination.totalPages ?? 1}
+                  onPage={setPage}
+                />
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
+      </section>
+
+      {/* Adjust stock dialog */}
+      <Dialog
+        open={!!adjustItem}
+        onOpenChange={(v) => {
+          if (!v) setAdjustItem(null);
+        }}
+      >
+        <DialogContent>
+          <DialogTitle>Adjust stock — {adjustItem?.product.name}</DialogTitle>
+          <DialogDescription>
+            Current quantity: <strong>{adjustItem?.quantity ?? 0}</strong>. Enter a positive or
+            negative delta.
+          </DialogDescription>
+          <Field label="Quantity delta (e.g. +10 or -3)">
+            <Input
+              type="number"
+              value={adjustDelta}
+              onChange={(e) => setAdjustDelta(Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Reason (optional)">
+            <Input
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+              placeholder="e.g. Damage, count correction…"
+            />
+          </Field>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setAdjustItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={adjustDelta === 0 || adjustMutation.isPending}
+              onClick={() => {
+                if (adjustItem)
+                  adjustMutation.mutate({
+                    productId: adjustItem.productId,
+                    delta: adjustDelta,
+                    reason: adjustReason,
+                  });
+              }}
+            >
+              {adjustMutation.isPending ? "Saving…" : "Confirm adjustment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </AppShell>
+  );
+}
+
+// ─── ReceiveStockPage ─────────────────────────────────────────────
+
+export function ReceiveStockPage() {
+  useAuth();
+  const qc = useQueryClient();
+  const [barcode, setBarcode] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scannedProduct, setScannedProduct] = useState<ApiProduct | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [done, setDone] = useState(false);
+  const [newQty, setNewQty] = useState(0);
+  const [qty, setQty] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleScan() {
+    const code = barcode.trim();
+    if (!code) return;
+    setScanning(true);
+    setScannedProduct(null);
+    setNotFound(false);
+    try {
+      const product = await productsApi.scan(code);
+      setScannedProduct(product);
+      setUnitCost(product.purchaseCost);
+    } catch {
+      setNotFound(true);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function handleReceive(e: React.FormEvent) {
+    e.preventDefault();
+    if (!scannedProduct) return;
+    if (qty < 1) {
+      toast.error("Quantity must be at least 1.");
+      return;
+    }
+    if (unitCost < 0) {
+      toast.error("Unit cost cannot be negative.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await inventoryApi.receive({
+        productId: scannedProduct.id,
+        quantity: qty,
+        unitCost,
+        notes: notes || undefined,
+      });
+      setNewQty(result.inventory.quantity);
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      setDone(true);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function reset() {
+    setBarcode("");
+    setScannedProduct(null);
+    setNotFound(false);
+    setDone(false);
+    setQty(1);
+    setUnitCost(0);
+    setNotes("");
+  }
+
+  return (
+    <AppShell title="Receive Stock">
+      <div className="receive-wrap">
+        <PageHeader title="Receive stock" subtitle="Scan a barcode and record a delivery." />
+
+        <div className="panel panel-body">
+          {done ? (
+            <div className="success-state">
+              <CheckCircle2 size={45} />
+              <h2>Stock received</h2>
+              <p>
+                <strong>{scannedProduct?.name}</strong> — new stock level:{" "}
+                <strong>{newQty} units</strong>.
+              </p>
+              <Button onClick={reset}>Receive another product</Button>
+            </div>
+          ) : (
+            <>
+              {/* Barcode scan row */}
+              <div className="barcode-row">
+                <Field label="Manufacturer barcode">
+                  <Input
+                    aria-label="Manufacturer barcode"
+                    value={barcode}
+                    onChange={(e) => {
+                      setBarcode(e.target.value);
+                      setScannedProduct(null);
+                      setNotFound(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleScan();
+                      }
+                    }}
+                    placeholder="Scan or type barcode…"
+                  />
+                </Field>
+                <Button
+                  className="self-end"
+                  onClick={handleScan}
+                  disabled={scanning || !barcode.trim()}
+                >
+                  <ScanLine /> {scanning ? "Scanning…" : "Scan"}
+                </Button>
+              </div>
+
+              {scannedProduct && (
+                <div className="hint">
+                  <div className="table-product">
+                    {scannedProduct.images?.[0] ? (
+                      <img
+                        src={scannedProduct.images[0].url}
+                        alt={scannedProduct.name}
+                        width={40}
+                        height={40}
+                        className="rounded object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                        <Package size={16} className="text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <strong>{scannedProduct.name}</strong>
+                      <p className="text-sm text-muted-foreground">
+                        {[scannedProduct.brand, scannedProduct.model].filter(Boolean).join(" · ")}
+                        {scannedProduct.inventory != null &&
+                          ` · Current stock: ${scannedProduct.inventory.quantity} units`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {notFound && barcode && (
+                <div className="hint">
+                  <p className="font-medium text-destructive">
+                    Product not found for barcode "{barcode}".
+                  </p>
+                  <Button asChild variant="link" className="p-0 h-auto">
+                    <Link to="/products/new">
+                      Register product <Plus size={14} />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+
+              <form className="mt-6" onSubmit={handleReceive}>
+                <div className="form-grid">
+                  <Field label="Quantity received *">
+                    <Input
+                      type="number"
+                      min={1}
+                      required
+                      value={qty}
+                      onChange={(e) => setQty(Number(e.target.value))}
+                    />
+                  </Field>
+                  <Field label="Unit purchase cost (₹) *">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      value={unitCost}
+                      onChange={(e) => setUnitCost(Number(e.target.value))}
+                    />
+                  </Field>
+                  <Field label="Notes (optional)">
+                    <Input
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="e.g. Supplier name, delivery reference…"
+                    />
+                  </Field>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={!scannedProduct || submitting}
+                  className="w-full mt-6"
+                >
+                  {submitting ? "Saving…" : "Confirm receipt"}
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ─── Date-range helper (for dashboard & reports) ──────────────────
+
+function rangeFor(option: string): { from: string; to: string } {
+  const now = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  if (option === "Today") {
+    const d = iso(now);
+    return { from: d, to: d };
+  }
+  if (option === "Last month") {
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { from: iso(first), to: iso(last) };
+  }
+  if (option === "This week") {
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((day + 6) % 7));
+    return { from: iso(monday), to: iso(now) };
+  }
+  // This month (default)
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { from: iso(first), to: iso(now) };
+}
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+// ─── DashboardPage ────────────────────────────────────────────────
+
+export function DashboardPage() {
+  const { user, activeShop } = useAuth();
+  const qc = useQueryClient();
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => dashboardApi.get(),
+  });
+
+  const recentSales = data?.recentSales ?? [];
+  const firstName = (user?.name ?? user?.email ?? "there").split(/[\s@]/)[0];
+
+  return (
+    <AppShell title="Dashboard">
+      <PageHeader
+        title={`Good to see you, ${firstName}`}
+        subtitle={`Here's what's happening at ${activeShop?.name ?? "your shop"}.`}
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            qc.invalidateQueries({ queryKey: ["dashboard"] });
+            refetch();
+          }}
+        >
+          <RefreshCw size={15} /> Refresh
+        </Button>
+        <Button asChild>
+          <Link to="/billing">
+            <Plus />
+            New Bill
+          </Link>
+        </Button>
+      </PageHeader>
+
+      {isLoading ? (
+        <SkeletonRows rows={4} />
+      ) : isError ? (
+        <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+      ) : data ? (
+        <>
+          <div className="metric-grid">
+            <MetricCard
+              label="Net Sales"
+              value={fmt(data.netSales)}
+              detail={`${data.completedSales} completed sales`}
+              icon={Wallet}
+            />
+            <MetricCard
+              label="Gross Profit"
+              value={fmt(data.grossProfit)}
+              detail="Net sales minus cost of goods"
+              icon={TrendingUp}
+            />
+            <MetricCard
+              label="Low Stock"
+              value={String(data.lowStockCount)}
+              detail="Products at or below threshold"
+              icon={TriangleAlert}
+            />
+            <MetricCard
+              label="Period"
+              value={formatDate(data.period.from)}
+              detail={`to ${formatDate(data.period.to)}`}
+              icon={Package}
+            />
+          </div>
+
+          <div className="quick-actions">
+            <Button asChild variant="outline">
+              <Link to="/products/new">
+                <Plus />
+                Add Product
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/inventory/receive">
+                <Boxes />
+                Receive Stock
+              </Link>
+            </Button>
+          </div>
+
+          <section className="panel">
+            <div className="panel-header">
+              <h2>Recent sales</h2>
+              <Button asChild variant="link" size="sm">
+                <Link to="/sales">
+                  View all
+                  <ArrowUpRight size={15} />
+                </Link>
+              </Button>
+            </div>
+            {recentSales.length ? (
+              <>
+                <div className="table-scroll desktop-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Invoice</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentSales.map((s: Sale) => (
+                        <tr key={s.id}>
+                          <td>
+                            <Link
+                              to="/sales/$id"
+                              params={{ id: s.id }}
+                              className="text-primary font-medium"
+                            >
+                              {s.invoiceNumber}
+                            </Link>
+                          </td>
+                          <td>{formatDate(s.createdAt)}</td>
+                          <td className="font-medium">{fmt(s.totalAmount)}</td>
+                          <td>
+                            <span className="status status-success">
+                              <span />
+                              {s.status}
+                            </span>
+                          </td>
+                          <td>
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`View ${s.invoiceNumber}`}
+                            >
+                              <Link to="/sales/$id" params={{ id: s.id }}>
+                                <ArrowUpRight size={15} />
+                              </Link>
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mobile-records">
+                  {recentSales.map((s: Sale) => (
+                    <Link
+                      to="/sales/$id"
+                      params={{ id: s.id }}
+                      key={s.id}
+                      className="mobile-record block"
+                    >
+                      <div className="mobile-record-top">
+                        <strong className="text-primary">{s.invoiceNumber}</strong>
+                        <strong>{fmt(s.totalAmount)}</strong>
+                      </div>
+                      <div className="mobile-record-meta">
+                        <span>{formatDate(s.createdAt)}</span>
+                        <span className="status status-success">
+                          <span />
+                          {s.status}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState title="No sales yet" detail="Completed sales will appear here." />
+            )}
+          </section>
+        </>
+      ) : null}
+    </AppShell>
+  );
+}
+
+// ─── SalesPage ────────────────────────────────────────────────────
+
+export function SalesPage() {
+  useAuth();
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["sales", page],
+    queryFn: () => salesApi.list({ page }),
+  });
+
+  const records = (data?.sales ?? []).filter((s) =>
+    s.invoiceNumber.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  return (
+    <AppShell title="Sales History">
+      <PageHeader title="Sales history" subtitle="Every completed sale and its invoice." />
+
+      <section className="panel">
+        <div className="table-toolbar">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search by invoice…" />
+        </div>
+
+        {isLoading ? (
+          <SkeletonRows rows={6} />
+        ) : isError ? (
+          <div className="p-4">
+            <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+          </div>
+        ) : !records.length ? (
+          <EmptyState
+            title={query ? "No matching sales" : "No sales yet"}
+            detail={query ? "Try another invoice number." : "Completed sales will appear here."}
+          />
+        ) : (
+          <>
+            <div className="table-scroll desktop-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <Link
+                          to="/sales/$id"
+                          params={{ id: s.id }}
+                          className="text-primary font-medium"
+                        >
+                          {s.invoiceNumber}
+                        </Link>
+                      </td>
+                      <td>{formatDate(s.createdAt)}</td>
+                      <td>{s.items?.length ?? 0}</td>
+                      <td className="font-medium">{fmt(s.totalAmount)}</td>
+                      <td>{s.payments?.[0]?.method ?? "—"}</td>
+                      <td>
+                        <span className="status status-success">
+                          <span />
+                          {s.status}
+                        </span>
+                      </td>
+                      <td>
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`View ${s.invoiceNumber}`}
+                        >
+                          <Link to="/sales/$id" params={{ id: s.id }}>
+                            <ArrowUpRight size={15} />
+                          </Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mobile-records">
+              {records.map((s) => (
+                <Link
+                  to="/sales/$id"
+                  params={{ id: s.id }}
+                  key={s.id}
+                  className="mobile-record block"
+                >
+                  <div className="mobile-record-top">
+                    <strong className="text-primary">{s.invoiceNumber}</strong>
+                    <strong>{fmt(s.totalAmount)}</strong>
+                  </div>
+                  <div className="mobile-record-meta">
+                    <span>
+                      {formatDate(s.createdAt)} · {s.payments?.[0]?.method ?? "—"}
+                    </span>
+                    <span className="status status-success">
+                      <span />
+                      {s.status}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <Pagination
+              page={data!.pagination.page}
+              totalPages={data!.pagination.totalPages}
+              onPage={setPage}
+            />
+          </>
+        )}
+      </section>
+    </AppShell>
+  );
+}
+
+// ─── InvoicePage ──────────────────────────────────────────────────
+
+export function InvoicePage() {
+  const { id } = useParams({ strict: false });
+
+  const {
+    data: sale,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["sale", id],
+    queryFn: () => salesApi.get(id!),
+    enabled: !!id,
+  });
+
+  return (
+    <AppShell title="Invoice">
+      <PageHeader title="Invoice preview" subtitle="A record of this sale.">
+        <Button asChild variant="outline">
+          <Link to="/sales">
+            <ArrowLeft size={15} />
+            Back to sales
+          </Link>
+        </Button>
+        <Button variant="outline" onClick={() => window.print()}>
+          <Download size={15} />
+          Download PDF
+        </Button>
+        <Button onClick={() => window.print()}>
+          <Printer size={15} />
+          Print
+        </Button>
+      </PageHeader>
+
+      {isLoading ? (
+        <SkeletonRows rows={6} />
+      ) : isError ? (
+        <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+      ) : !sale ? (
+        <EmptyState title="Invoice not found" detail="Choose an invoice from sales history." />
+      ) : (
+        <div className="invoice">
+          <div className="invoice-header">
+            <div>
+              <Brand />
+              <h3 className="mt-5">{sale.shop?.name ?? "Shop"}</h3>
+              {sale.shop?.address && <p>{sale.shop.address}</p>}
+              {(sale.shop?.contactPhone || sale.shop?.contactEmail) && (
+                <p>
+                  {[sale.shop?.contactPhone, sale.shop?.contactEmail].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+            <div>
+              <h2>INVOICE</h2>
+              <p>
+                {sale.invoiceNumber}
+                <br />
+                {formatDate(sale.createdAt)}
+                <br />
+                Payment: {sale.payments?.[0]?.method ?? "—"}
+              </p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sale.items.map((it) => (
+                <tr key={it.id}>
+                  <td>{it.productNameSnapshot}</td>
+                  <td>{it.quantity}</td>
+                  <td>{fmt(it.unitSellingPrice)}</td>
+                  <td>{fmt(it.lineTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="invoice-summary">
+            <div className="summary-row">
+              <span>Subtotal</span>
+              <span>{fmt(sale.subtotal)}</span>
+            </div>
+            {sale.discountTotal > 0 && (
+              <div className="summary-row">
+                <span>Discount</span>
+                <span>-{fmt(sale.discountTotal)}</span>
+              </div>
+            )}
+            <div className="summary-row">
+              <span>Applicable tax</span>
+              <span>{fmt(sale.taxTotal)}</span>
+            </div>
+            <div className="summary-row summary-total">
+              <span>Total</span>
+              <span>{fmt(sale.totalAmount)}</span>
+            </div>
+          </div>
+
+          <div className="invoice-footer">
+            Thank you for your business.
+            <br />
+            PDF uses your browser's "Save as PDF" option.
+          </div>
+        </div>
+      )}
+    </AppShell>
+  );
+}
+
+// ─── ReportsPage ──────────────────────────────────────────────────
+
+export function ReportsPage() {
+  useAuth();
+  const [range, setRange] = useState("This month");
+  const { from, to } = useMemo(() => rangeFor(range), [range]);
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["reports", "profit-loss", from, to],
+    queryFn: () => reportsApi.profitLoss({ from, to }),
+  });
+
+  const rows: [string, string, number][] = data
+    ? [
+        ["Net sales", "Sales less returns and discounts", data.netSales],
+        ["Cost of goods sold", "Cost of the products sold", -data.cogs],
+        ["Gross profit", "Net sales minus cost of goods sold", data.grossProfit],
+        ["Operating expenses", "Recorded shop expenses", -data.operatingExpenses],
+        ["Net profit", "Gross profit minus operating expenses", data.netProfit],
+      ]
+    : [];
+
+  return (
+    <AppShell title="Profit & Loss">
+      <PageHeader
+        title="Profit & loss"
+        subtitle="A summary of your shop's performance for the selected period."
+      >
+        <select
+          aria-label="Report period"
+          className="date-control"
+          value={range}
+          onChange={(e) => setRange(e.target.value)}
+        >
+          <option>Today</option>
+          <option>This week</option>
+          <option>This month</option>
+          <option>Last month</option>
+        </select>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw size={15} /> Refresh
+        </Button>
+      </PageHeader>
+
+      {isLoading ? (
+        <SkeletonRows rows={5} />
+      ) : isError ? (
+        <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+      ) : data ? (
+        <>
+          <div className="metric-grid">
+            <MetricCard
+              label="Net Sales"
+              value={fmt(data.netSales)}
+              detail={`${data.salesCount} sales`}
+              icon={Wallet}
+            />
+            <MetricCard
+              label="Cost of Goods Sold"
+              value={fmt(data.cogs)}
+              detail="Cost of products sold"
+              icon={Package}
+            />
+            <MetricCard
+              label="Gross Profit"
+              value={fmt(data.grossProfit)}
+              detail="Net sales minus COGS"
+              icon={TrendingUp}
+            />
+            <MetricCard
+              label="Net Profit"
+              value={fmt(data.netProfit)}
+              detail="After operating expenses"
+              icon={Wallet}
+            />
+          </div>
+
+          <section className="panel">
+            <div className="panel-header">
+              <h2>At a glance</h2>
+              <span className="sample-caption">
+                {formatDate(from)} – {formatDate(to)}
+              </span>
+            </div>
+            <div className="panel-body">
+              {rows.map(([label, detail, value]) => (
+                <div className="report-row" key={label}>
+                  <div>
+                    <strong>{label}</strong>
+                    <small>{detail}</small>
+                  </div>
+                  <strong>{fmt(value)}</strong>
+                </div>
+              ))}
+              <div className="hint">{data.note}</div>
+            </div>
+          </section>
+        </>
+      ) : null}
+    </AppShell>
+  );
+}
+
+// ─── SettingsPage ─────────────────────────────────────────────────
+
+export function SettingsPage() {
+  useAuth();
+  const { refreshSession, activeShop } = useAuth();
+  const qc = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [newTaxName, setNewTaxName] = useState("");
+  const [newTaxRate, setNewTaxRate] = useState(0);
+
+  const {
+    data: shop,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["shop", "current"],
+    queryFn: () => shopsApi.getCurrent(),
+  });
+
+  const { data: taxCats } = useQuery({
+    queryKey: ["tax-categories"],
+    queryFn: () => taxCategoriesApi.list(),
+  });
+
+  const createTaxMutation = useMutation({
+    mutationFn: () => taxCategoriesApi.create({ name: newTaxName.trim(), rate: newTaxRate }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tax-categories"] });
+      setNewTaxName("");
+      setNewTaxRate(0);
+      toast.success("Tax category added.");
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
+  const deleteTaxMutation = useMutation({
+    mutationFn: (id: string) => taxCategoriesApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tax-categories"] });
+      toast.success("Tax category removed.");
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const str = (key: string) => (form.get(key) as string | null)?.trim() ?? "";
+    setSubmitting(true);
+    try {
+      await shopsApi.updateCurrent({
+        name: str("name") || undefined,
+        contactPhone: str("contactPhone") || undefined,
+        contactEmail: str("contactEmail") || undefined,
+        address: str("address") || undefined,
+        invoicePrefix: str("invoicePrefix") || undefined,
+        invoiceFooter: str("invoiceFooter") || undefined,
+      });
+      qc.invalidateQueries({ queryKey: ["shop"] });
+      await refreshSession();
+      toast.success("Shop settings saved.");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <AppShell title="Settings">
+        <SkeletonRows rows={8} />
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell title="Settings">
+      <div className="settings-layout">
+        <PageHeader
+          title="Shop settings"
+          subtitle={`The details that make ${activeShop?.name ?? "your shop"} yours.`}
+        />
+
+        {isError ? (
+          <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="panel panel-body">
+              <section className="form-section">
+                <h2>Shop information</h2>
+                <div className="form-grid">
+                  <Field label="Shop name">
+                    <Input name="name" required defaultValue={shop?.name} />
+                  </Field>
+                  <Field label="Contact number">
+                    <Input
+                      name="contactPhone"
+                      type="tel"
+                      defaultValue={shop?.contactPhone}
+                      placeholder="Shop phone"
+                    />
+                  </Field>
+                  <Field label="Contact email">
+                    <Input
+                      name="contactEmail"
+                      type="email"
+                      defaultValue={shop?.contactEmail}
+                      placeholder="Shop email"
+                    />
+                  </Field>
+                  <Field label="Shop address">
+                    <Input name="address" defaultValue={shop?.address} placeholder="Shop address" />
+                  </Field>
+                </div>
+              </section>
+
+              <section className="form-section">
+                <h2>Invoice preferences</h2>
+                <div className="form-grid">
+                  <Field label="Invoice prefix">
+                    <Input
+                      name="invoicePrefix"
+                      defaultValue={shop?.invoicePrefix}
+                      placeholder="e.g. INV"
+                    />
+                  </Field>
+                  <Field label="Invoice footer">
+                    <Input
+                      name="invoiceFooter"
+                      defaultValue={shop?.invoiceFooter}
+                      placeholder="Thank you for your business!"
+                    />
+                  </Field>
+                </div>
+              </section>
+            </div>
+
+            <div className="form-actions">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        <section className="panel panel-body">
+          <section className="form-section">
+            <h2>Tax categories</h2>
+            {taxCats?.length ? (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Rate</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxCats.map((tc) => (
+                      <tr key={tc.id}>
+                        <td>
+                          {tc.name}
+                          {tc.isDefault ? " (default)" : ""}
+                        </td>
+                        <td>{tc.rate}%</td>
+                        <td>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${tc.name}`}
+                            disabled={deleteTaxMutation.isPending}
+                            onClick={() => deleteTaxMutation.mutate(tc.id)}
+                          >
+                            <Trash2 size={15} />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="hint">No tax categories yet. Add one below.</p>
+            )}
+
+            <div className="form-grid mt-4">
+              <Field label="Name">
+                <Input
+                  value={newTaxName}
+                  onChange={(e) => setNewTaxName(e.target.value)}
+                  placeholder="e.g. GST 18%"
+                />
+              </Field>
+              <Field label="Rate (%)">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={newTaxRate}
+                  onChange={(e) => setNewTaxRate(Number(e.target.value))}
+                />
+              </Field>
+            </div>
+            <Button
+              variant="outline"
+              className="mt-3"
+              disabled={!newTaxName.trim() || createTaxMutation.isPending}
+              onClick={() => createTaxMutation.mutate()}
+            >
+              <Store size={15} /> Add tax category
+            </Button>
+          </section>
+        </section>
+      </div>
+    </AppShell>
+  );
+}

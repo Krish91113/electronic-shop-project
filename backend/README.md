@@ -19,10 +19,15 @@ cp .env.example .env
 # Generate Prisma client
 npx prisma generate
 
-# Run migrations
-npx prisma migrate dev --name init
+# Create/sync the database schema
+# (this project is schema-first with `db push`; there is no migrations folder)
+npx prisma db push
 
-# Seed database (1 owner, 2 shops, sample products)
+# Seed the database (1 owner, 2 shops, sample products)
+# WARNING: the seed script deletes ALL existing data, so it requires
+# explicit confirmation outside of tests:
+#   PowerShell:  $env:ALLOW_DESTRUCTIVE_SEED="true"; npm run prisma:seed
+#   Bash:        ALLOW_DESTRUCTIVE_SEED=true npm run prisma:seed
 npm run prisma:seed
 ```
 
@@ -59,9 +64,12 @@ npm test
 | POST | /auth/login | No | Login |
 | GET | /auth/me | Yes | Session info |
 | POST | /auth/logout | Yes | Logout |
-| GET | /shops/mine | Yes | List user's shops |
+| GET | /shops | Yes | List user's shops |
+| GET | /shops/mine | Yes | List user's shops (alias) |
 | GET | /shops/current | Yes+Shop | Current shop details |
-| PATCH | /shops/current | Yes+Shop | Update shop |
+| PATCH | /shops/current | Yes+Shop | Update current shop |
+| GET | /shops/:id | Yes | Get shop (must be a member) |
+| PATCH | /shops/:id | Yes | Update shop (must be a member) |
 | POST | /products | Yes+Shop | Create product |
 | GET | /products | Yes+Shop | List products |
 | GET | /products/:id | Yes+Shop | Get product |
@@ -88,8 +96,10 @@ npm test
 | DELETE | /expenses/:id | Yes+Shop | Delete expense |
 | GET | /reports/profit-loss | Yes+Shop | P&L report |
 | GET | /dashboard | Yes+Shop | Dashboard metrics |
-| POST | /images/signed-upload | Yes+Shop | Cloudinary signed params |
-| POST | /images/attach | Yes+Shop | Attach image |
+| POST | /images/upload/:productId | Yes+Shop | Upload image (server-side, multer → Cloudinary) |
+| POST | /images/signed-upload | Yes+Shop | Cloudinary signed params (optional direct flow) |
+| POST | /images/attach | Yes+Shop | Attach an uploaded image to a product |
+| PATCH | /images/:imageId/primary | Yes+Shop | Set product's primary image |
 | PUT | /images/:imageId | Yes+Shop | Replace image |
 | DELETE | /images/:imageId | Yes+Shop | Remove image |
 | GET | /public/shops/:slug/products | No | Public catalogue |

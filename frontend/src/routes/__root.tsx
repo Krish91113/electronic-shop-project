@@ -4,11 +4,53 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-
-import { DemoProvider } from "@/components/shop/data";
 import { Toaster } from "sonner";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { Loader2 } from "lucide-react";
+
+// Protected admin routes — redirect to login if not authenticated
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/products",
+  "/inventory",
+  "/billing",
+  "/sales",
+  "/reports",
+  "/settings",
+];
+
+function isProtectedRoute(path: string): boolean {
+  return PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+}
+
+function AppContent() {
+  const { isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
+  const path = useRouterState({ select: (s) => s.location.pathname });
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && isProtectedRoute(path)) {
+    router.navigate({ to: "/login", replace: true });
+    return null;
+  }
+
+  return (
+    <>
+      <Outlet />
+      <Toaster richColors position="top-right" />
+    </>
+  );
+}
 
 function NotFoundComponent() {
   return (
@@ -35,7 +77,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -75,11 +116,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <DemoProvider><Outlet /><Toaster richColors position="top-right" /></DemoProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

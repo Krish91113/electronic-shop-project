@@ -1,5 +1,23 @@
 import * as service from './images.service.js';
 
+export async function upload(req, res, next) {
+  try {
+    const image = await service.uploadProductImage(req.shopId, req.params.productId, req.file);
+    res.status(201).json({ data: image });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setPrimary(req, res, next) {
+  try {
+    const image = await service.setPrimaryImage(req.shopId, req.params.imageId);
+    res.json({ data: image });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function signedUpload(req, res, next) {
   try {
     const params = await service.getSignedUploadParams(req.shopId, req.body.productId);
