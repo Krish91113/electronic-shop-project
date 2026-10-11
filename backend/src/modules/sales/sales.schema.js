@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 const saleItemSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.number().int().min(1),
-  unitSellingPrice: z.number().min(0),
-  discountAmount: z.number().min(0).optional().default(0),
+  quantity: z.coerce.number().int().min(1),
+  unitSellingPrice: z.coerce.number().min(0),
+  discountAmount: z.coerce.number().min(0).optional().default(0),
 });
 
 const paymentMethodSchema = z.preprocess(

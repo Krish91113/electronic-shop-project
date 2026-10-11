@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ScanLine,
   Plus,
@@ -69,6 +69,7 @@ function playBeep(type: "success" | "error" = "success") {
 
 export function BillingPage() {
   useAuth(); // ensure auth context present
+  const queryClient = useQueryClient();
 
   // Search / scan state
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,6 +84,7 @@ export function BillingPage() {
   // Cart state
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card" | "Other">("Cash");
+  const [mobileTab, setMobileTab] = useState<"catalog" | "cart">("catalog");
 
   // UI state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -139,6 +141,13 @@ export function BillingPage() {
       setCompletedSale(sale);
       setCart([]);
       setConfirmOpen(false);
+      setMobileTab("catalog");
+      // Invalidate queries so inventory, products, sales history, dashboard & profit/loss refresh
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
       toast.success(`Invoice ${sale.invoiceNumber} created!`);
     },
     onError: (err) => {
@@ -178,7 +187,7 @@ export function BillingPage() {
         {
           product,
           qty: 1,
-          unitPrice: product.defaultSellingPrice ?? product.purchaseCost,
+          unitPrice: Number(product.defaultSellingPrice ?? product.purchaseCost ?? 0),
         },
       ];
     });
@@ -236,15 +245,18 @@ export function BillingPage() {
   const handleCompleteSale = () => {
     const key = crypto.randomUUID();
     const payload = {
-      items: cart.map((l) => ({
-        productId: l.product.id,
-        quantity: l.qty,
-        unitSellingPrice: l.unitPrice,
-        discountAmount:
-          l.product.defaultSellingPrice && l.product.defaultSellingPrice > l.unitPrice
-            ? l.product.defaultSellingPrice - l.unitPrice
-            : 0,
-      })),
+      items: cart.map((l) => {
+        const unitSellingPrice = Number(l.unitPrice);
+        const defaultPrice = Number(l.product.defaultSellingPrice ?? l.product.purchaseCost ?? 0);
+        const discountAmount =
+          defaultPrice > unitSellingPrice ? Number((defaultPrice - unitSellingPrice).toFixed(2)) : 0;
+        return {
+          productId: l.product.id,
+          quantity: Math.max(1, Math.floor(Number(l.qty))),
+          unitSellingPrice: Number(unitSellingPrice.toFixed(2)),
+          discountAmount,
+        };
+      }),
       paymentMethod,
     };
     saleMutation.mutate({ payload, key });
@@ -256,6 +268,7 @@ export function BillingPage() {
     setSearchQuery("");
     setBarcodeInput("");
     setPaymentMethod("Cash");
+    setMobileTab("catalog");
   };
 
   // ─── Success state ────────────────────────────────────────────
@@ -310,9 +323,32 @@ export function BillingPage() {
         subtitle="Search for products or scan a barcode to add items to the bill."
       />
 
+      {/* ── Mobile Tab Switcher (Visible on screens <= 900px) ── */}
+      <div className="mobile-pos-switcher">
+        <button
+          type="button"
+          className={`mobile-pos-tab ${mobileTab === "catalog" ? "active" : ""}`}
+          onClick={() => setMobileTab("catalog")}
+        >
+          <Search size={16} />
+          <span>Products & Scan</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-pos-tab ${mobileTab === "cart" ? "active" : ""}`}
+          onClick={() => setMobileTab("cart")}
+        >
+          <ShoppingBag size={16} />
+          <span>Bill</span>
+          {cart.length > 0 && (
+            <span className="mobile-cart-badge">{cart.reduce((s, l) => s + l.qty, 0)}</span>
+          )}
+        </button>
+      </div>
+
       <div className="pos-grid">
         {/* ── Left: Product search panel ── */}
-        <section>
+        <section className={`pos-catalog-section ${mobileTab === "cart" ? "mobile-hidden-on-small" : ""}`}>
           {/* Barcode scan row */}
           <div className="barcode-row" style={{ marginBottom: "0.75rem" }}>
             <div className="search-input" style={{ flex: 1 }}>
@@ -424,7 +460,7 @@ export function BillingPage() {
         </section>
 
         {/* ── Right: Cart panel ── */}
-        <section className="panel cart-panel">
+        <section className={`panel cart-panel pos-cart-section ${mobileTab === "catalog" ? "mobile-hidden-on-small" : ""}`}>
           <div className="panel-header">
             <h2>Current Bill</h2>
             <span className="sample-caption">{cart.reduce((s, l) => s + l.qty, 0)} items</span>
@@ -443,6 +479,20 @@ export function BillingPage() {
           </div>
 
           <div className="panel-body">
+            {cart.length > 0 && (
+              <div className="mobile-only-add-more">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setMobileTab("catalog")}
+                >
+                  <Plus size={15} className="mr-1" />
+                  Add More Products
+                </Button>
+              </div>
+            )}
+
             {cart.length ? (
               cart.map((l) => {
                 const maxQty = l.product.inventory?.quantity ?? 999;
@@ -580,6 +630,24 @@ export function BillingPage() {
           </div>
         </section>
       </div>
+
+      {/* Floating cart peek on mobile when viewing catalog */}
+      {cart.length > 0 && mobileTab === "catalog" && (
+        <div className="mobile-cart-peek">
+          <div className="mobile-cart-peek-info">
+            <span className="mobile-cart-peek-count">{cart.reduce((s, l) => s + l.qty, 0)} item{cart.length !== 1 ? "s" : ""}</span>
+            <span className="mobile-cart-peek-total">{money(total)}</span>
+          </div>
+          <Button
+            size="sm"
+            className="mobile-cart-peek-btn bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => setMobileTab("cart")}
+          >
+            <ShoppingBag size={14} className="mr-1.5" />
+            View Bill ({money(total)})
+          </Button>
+        </div>
+      )}
 
       {/* ── Confirmation dialog ── */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
