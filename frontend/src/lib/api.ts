@@ -1,7 +1,8 @@
 // src/lib/api.ts
 // Central typed API client for the Electronics Shop backend.
 
-const BASE_URL = import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:4000";
+const rawBaseUrl = (import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:4000").trim().replace(/\/+$/, "");
+const BASE_URL = rawBaseUrl.endsWith("/api/v1") ? rawBaseUrl.slice(0, -7) : rawBaseUrl;
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -288,7 +289,8 @@ async function rawRequest(
 
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}/api/v1${path}`, init);
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    res = await fetch(`${BASE_URL}/api/v1${cleanPath}`, init);
   } catch (err) {
     const message =
       err instanceof DOMException && err.name === "TimeoutError"

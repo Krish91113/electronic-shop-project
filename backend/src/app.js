@@ -83,6 +83,14 @@ app.use(
   })
 );
 
+// Normalize incoming path (e.g. //api/v1 -> /api/v1)
+app.use((req, _res, next) => {
+  if (req.url.startsWith('//')) {
+    req.url = req.url.replace(/^\/+/, '/');
+  }
+  next();
+});
+
 // API v1 routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/shops', shopRoutes);
