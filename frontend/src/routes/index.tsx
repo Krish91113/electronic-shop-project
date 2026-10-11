@@ -5,7 +5,7 @@ export const Route = createFileRoute("/")({
   head: () =>
     pageHead(
       "Catalogue",
-      "Catalogue for the Volt electronics shop UI prototype. Sample data and local interactions only.",
+      "Browse the Volt Electronics catalogue. Real products to explore online and find in store.",
     ),
   component: Catalogue,
 });
