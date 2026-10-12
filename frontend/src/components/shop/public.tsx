@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Headphones,
   PackageCheck,
-  ArrowUpRight,
   LockKeyhole,
   Eye,
   EyeOff,
@@ -296,17 +295,6 @@ export function PublicHeader({ search, onSearch }: PublicHeaderProps = {}) {
           </form>
         )}
 
-        <div className={`${hasSearch ? "" : "ml-auto"} hidden items-center md:flex`}>
-          <span className="mr-3 hidden h-6 w-px bg-emerald-950/15 lg:block" aria-hidden="true" />
-          <Button asChild variant="outline" size="sm" className="rounded-full">
-            <Link to="/login">
-              <LockKeyhole size={14} />
-              Owner portal
-              <ArrowUpRight size={14} />
-            </Link>
-          </Button>
-        </div>
-
         <button
           type="button"
           className={`ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full text-emerald-950 hover:bg-emerald-50 md:hidden ${FOCUS_RING}`}
@@ -354,12 +342,6 @@ export function PublicHeader({ search, onSearch }: PublicHeaderProps = {}) {
                 <ChevronRight size={16} className="text-muted-foreground" />
               </Link>
             ))}
-            <Button asChild variant="outline" className="mt-3 rounded-full">
-              <Link to="/login" onClick={() => setOpen(false)}>
-                <LockKeyhole size={14} />
-                Owner portal
-              </Link>
-            </Button>
           </div>
         </div>
       )}
@@ -524,14 +506,6 @@ export function PublicFooter() {
                 ))}
               </ul>
             )}
-
-            <Link
-              to="/login"
-              className={`mt-6 inline-flex items-center gap-1.5 text-xs text-emerald-50/50 hover:text-white motion-safe:transition-colors duration-200 ${FOCUS_RING} focus-visible:ring-offset-[#08080d]`}
-            >
-              <LockKeyhole size={13} />
-              Owner portal
-            </Link>
           </div>
 
           {/* Explore */}

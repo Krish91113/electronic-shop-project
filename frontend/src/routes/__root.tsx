@@ -23,7 +23,13 @@ const PROTECTED_PREFIXES = [
 ];
 
 function isProtectedRoute(path: string): boolean {
-  return PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+  const normalized = path.replace(/\/+$/, "");
+  // Public product detail page (/products/:id) is accessible without login.
+  // Admin product routes like /products, /products/new, /products/:id/edit require login.
+  if (/^\/products\/[^/]+$/.test(normalized) && normalized !== "/products/new") {
+    return false;
+  }
+  return PROTECTED_PREFIXES.some((p) => normalized === p || normalized.startsWith(p + "/"));
 }
 
 function AppContent() {
