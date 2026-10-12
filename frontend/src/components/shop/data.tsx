@@ -26,11 +26,13 @@ export type Product = {
 
 export const money = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
+import { STORE_NAME } from "@/lib/constants";
+
 export const pageHead = (title: string, description: string) => ({
   meta: [
-    { title: `${title} · Volt Electronics` },
+    { title: `${title} · ${STORE_NAME}` },
     { name: "description", content: description },
-    { property: "og:title", content: `${title} · Volt Electronics` },
+    { property: "og:title", content: `${title} · ${STORE_NAME}` },
     { property: "og:description", content: description },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },

@@ -1,7 +1,9 @@
 // src/lib/api.ts
 // Central typed API client for the Electronics Shop backend.
 
-const rawBaseUrl = (import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:4000").trim().replace(/\/+$/, "");
+const rawBaseUrl = (import.meta.env["VITE_API_BASE_URL"] ?? "http://localhost:4000")
+  .trim()
+  .replace(/\/+$/, "");
 const BASE_URL = rawBaseUrl.endsWith("/api/v1") ? rawBaseUrl.slice(0, -7) : rawBaseUrl;
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -41,6 +43,7 @@ export interface Shop {
   contactPhone?: string;
   contactEmail?: string;
   address?: string;
+  gstin?: string;
   invoicePrefix: string;
   invoiceFooter?: string;
   logoUrl?: string;
@@ -149,8 +152,10 @@ export interface SaleItem {
   taxCategorySnapshot?: string;
   taxRateSnapshot: number;
   taxAmount: number;
+  serialNumber?: string;
   unitCostSnapshot: number;
   lineTotal: number;
+  product?: { warranty?: string };
 }
 
 export interface Sale {
@@ -163,13 +168,25 @@ export interface Sale {
   taxTotal: number;
   totalAmount: number;
   paymentStatus: string;
+  customerName?: string;
+  customerPhone?: string;
   notes?: string;
   createdBy?: string;
   createdAt: string;
   completedAt?: string;
   items: SaleItem[];
   payments: Payment[];
-  shop?: Pick<Shop, "name" | "code" | "contactPhone" | "contactEmail" | "address">;
+  shop?: Pick<
+    Shop,
+    | "name"
+    | "code"
+    | "contactPhone"
+    | "contactEmail"
+    | "address"
+    | "gstin"
+    | "logoUrl"
+    | "invoiceFooter"
+  >;
 }
 
 export interface Payment {
@@ -235,17 +252,39 @@ export function getActiveShopId(): string | null {
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
-const TOKEN_KEY = "volt_auth_token";
-let authToken: string | null = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+const TOKEN_KEY = "time_centre_auth_token";
+function getStoredToken(): string | null {
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage &&
+      typeof window.localStorage.getItem === "function"
+    ) {
+      return window.localStorage.getItem(TOKEN_KEY);
+    }
+  } catch {
+    // fallback
+  }
+  return null;
+}
+let authToken: string | null = getStoredToken();
 
 export function setAuthToken(token: string | null) {
   authToken = token;
-  if (typeof window !== "undefined") {
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
-    } else {
-      localStorage.removeItem(TOKEN_KEY);
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage &&
+      typeof window.localStorage.setItem === "function"
+    ) {
+      if (token) {
+        window.localStorage.setItem(TOKEN_KEY, token);
+      } else {
+        window.localStorage.removeItem(TOKEN_KEY);
+      }
     }
+  } catch {
+    // fallback
   }
 }
 
@@ -372,6 +411,7 @@ export type ShopUpdate = {
       | "contactPhone"
       | "contactEmail"
       | "address"
+      | "gstin"
       | "invoicePrefix"
       | "invoiceFooter"
       | "logoUrl"
@@ -409,19 +449,21 @@ export interface ListProductsParams {
 
 export interface CreateProductData {
   name: string;
-  barcode?: string | undefined;
-  brand?: string | undefined;
-  model?: string | undefined;
-  category?: string | undefined;
-  description?: string | undefined;
+  barcode?: string | null | undefined;
+  brand?: string | null | undefined;
+  model?: string | null | undefined;
+  category?: string | null | undefined;
+  description?: string | null | undefined;
   purchaseCost: number;
-  defaultSellingPrice?: number | undefined;
+  defaultSellingPrice?: number | null | undefined;
   lowStockThreshold?: number | undefined;
-  warranty?: string | undefined;
-  taxCategoryId?: string | undefined;
+  warranty?: string | null | undefined;
+  taxCategoryId?: string | null | undefined;
   isPublished?: boolean | undefined;
   initialStock?: number | undefined;
 }
+
+export type UpdateProductData = Partial<CreateProductData & { isActive: boolean }>;
 
 export const products = {
   list: async (params: ListProductsParams = {}) => {
@@ -431,7 +473,7 @@ export const products = {
   get: (id: string) => request<Product>("GET", `/products/${id}`),
   scan: (barcode: string) => request<Product>("POST", "/products/scan", { barcode }),
   create: (data: CreateProductData) => request<Product>("POST", "/products", data),
-  update: (id: string, data: Partial<CreateProductData & { isActive: boolean }>) =>
+  update: (id: string, data: UpdateProductData) =>
     request<Product>("PATCH", `/products/${id}`, data),
   delete: (id: string) =>
     request<{ id: string; deleted: boolean; archived?: boolean; message?: string }>(
@@ -490,14 +532,17 @@ export interface CartItem {
   productId: string;
   quantity: number;
   unitSellingPrice: number;
-  discountAmount?: number;
+  discountAmount?: number | undefined;
+  serialNumber?: string | undefined;
 }
 
 export interface CreateSaleData {
   items: CartItem[];
   paymentMethod: string;
-  paymentReference?: string;
-  notes?: string;
+  paymentReference?: string | undefined;
+  customerName?: string | undefined;
+  customerPhone?: string | undefined;
+  notes?: string | undefined;
 }
 
 export const sales = {
@@ -585,10 +630,31 @@ export interface PublicProduct {
   images: ProductImage[];
 }
 
+export interface PublicShop {
+  name: string;
+  slug: string;
+  address?: string;
+  contactPhone?: string;
+  logoUrl?: string;
+  productCount: number;
+  inStockCount: number;
+}
+
 export const publicApi = {
+  listShops: async (): Promise<PublicShop[]> => {
+    const res = await request<{ data: PublicShop[] } | PublicShop[]>("GET", "/public/shops");
+    return Array.isArray(res) ? res : ((res as { data: PublicShop[] }).data ?? []);
+  },
+  getShop: (slug: string) => request<PublicShop>("GET", `/public/shops/${slug}`),
   listProducts: async (
     shopSlug: string,
-    params: { search?: string; category?: string; page?: number; limit?: number } = {},
+    params: {
+      search?: string | undefined;
+      category?: string | undefined;
+      inStock?: boolean | string | undefined;
+      page?: number | undefined;
+      limit?: number | undefined;
+    } = {},
   ) => {
     const { data, pagination } = await requestList<PublicProduct>(
       "GET",
@@ -598,14 +664,25 @@ export const publicApi = {
   },
   getProduct: (shopSlug: string, productSlug: string) =>
     request<PublicProduct>("GET", `/public/shops/${shopSlug}/products/${productSlug}`),
-  getShop: (slug: string) =>
-    request<Pick<Shop, "id" | "name" | "slug" | "code">>("GET", `/public/shops/${slug}`),
 };
 
 // ─── Error helpers ────────────────────────────────────────────────
 
 export function getErrorMessage(err: unknown): string {
-  if (err instanceof ApiException) return err.message;
+  if (err instanceof ApiException) {
+    if (err.details && Array.isArray(err.details) && err.details.length > 0) {
+      const messages = err.details
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((d: any) => {
+          const path =
+            Array.isArray(d?.path) && d.path.length > 0 ? `${d.path[d.path.length - 1]}: ` : "";
+          return `${path}${d?.message || "Invalid value"}`;
+        })
+        .filter(Boolean);
+      if (messages.length > 0) return messages.join(", ");
+    }
+    return err.message;
+  }
   if (err instanceof Error) return err.message;
   return "An unexpected error occurred";
 }

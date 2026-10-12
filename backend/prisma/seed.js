@@ -3,8 +3,32 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Configurable shop definitions (Time Centre Mobile & Electronics)
+const SHOPS_CONFIG = [
+  {
+    name: process.env.INIT_SHOP1_NAME || 'Time Centre - Main Road',
+    code: process.env.INIT_SHOP1_CODE || 'TC1',
+    slug: process.env.INIT_SHOP1_SLUG || 'time-centre-main-road',
+    contactPhone: process.env.INIT_SHOP1_PHONE || '7004114744',
+    contactEmail: process.env.INIT_SHOP1_EMAIL || 'owner@electronics.com',
+    address: process.env.INIT_SHOP1_ADDRESS || 'Main road Bishnugarh Near by Axis Bank Bishnugarh',
+    timezone: 'Asia/Kolkata',
+    pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
+  },
+  {
+    name: process.env.INIT_SHOP2_NAME || 'Time Centre - Akhara Chowk',
+    code: process.env.INIT_SHOP2_CODE || 'TC2',
+    slug: process.env.INIT_SHOP2_SLUG || 'time-centre-akhara-chowk',
+    contactPhone: process.env.INIT_SHOP2_PHONE || '7004114744',
+    contactEmail: process.env.INIT_SHOP2_EMAIL || 'owner2@electronics.com',
+    address: process.env.INIT_SHOP2_ADDRESS || 'Akhara Chowck Bishnugarh',
+    timezone: 'Asia/Kolkata',
+    pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
+  },
+];
+
 async function seed() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding Time Centre Mobile & Electronics database...');
 
   if (process.env.NODE_ENV === 'production') {
     console.error('❌ Seed script refused to run in production.');
@@ -51,53 +75,59 @@ async function seed() {
   await prisma.shop.deleteMany();
   await prisma.user.deleteMany();
 
-  // Create owner
-  const passwordHash = await bcrypt.hash('owner123', 10);
-  const owner = await prisma.user.create({
+  // Create independent owners
+  const passwordHash = await bcrypt.hash(process.env.INIT_SHOP1_OWNER_PASSWORD || 'Owner@12345', 10);
+  const superPasswordHash = await bcrypt.hash('super123', 10);
+
+  const owner1 = await prisma.user.create({
     data: {
-      email: 'owner@electronics.com',
-      name: 'Shop Owner',
+      email: process.env.INIT_SHOP1_OWNER_EMAIL || 'owner@electronics.com',
+      name: 'Main Road Branch Owner',
       passwordHash,
       role: 'OWNER',
     },
   });
-  console.log('  ✅ Owner created:', owner.email);
+
+  const owner2 = await prisma.user.create({
+    data: {
+      email: process.env.INIT_SHOP2_OWNER_EMAIL || 'owner2@electronics.com',
+      name: 'Akhara Chowk Branch Owner',
+      passwordHash,
+      role: 'OWNER',
+    },
+  });
+
+  const superOwner = await prisma.user.create({
+    data: {
+      email: 'superowner@timecentre.com',
+      name: 'Business Super Owner',
+      passwordHash: superPasswordHash,
+      role: 'SUPER_OWNER',
+    },
+  });
+
+  console.log('  ✅ Users created:', owner1.email, owner2.email, superOwner.email);
 
   // Create two shops
   const shop1 = await prisma.shop.create({
-    data: {
-      name: 'Electronics Hub - Main Street',
-      code: 'EHM',
-      slug: 'electronics-hub-main',
-      contactPhone: '+91-9876543210',
-      contactEmail: 'main@ehub.com',
-      address: '123 Main Street, Mumbai',
-      timezone: 'Asia/Kolkata',
-      pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
-    },
+    data: SHOPS_CONFIG[0],
   });
 
   const shop2 = await prisma.shop.create({
-    data: {
-      name: 'Electronics Hub - Park Road',
-      code: 'EHP',
-      slug: 'electronics-hub-park',
-      contactPhone: '+91-9876543211',
-      contactEmail: 'park@ehub.com',
-      address: '456 Park Road, Mumbai',
-      timezone: 'Asia/Kolkata',
-      pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
-    },
+    data: SHOPS_CONFIG[1],
   });
   console.log('  ✅ Shops created:', shop1.name, '&', shop2.name);
 
-  // Memberships
+  // Memberships: Each owner is tied strictly to their respective shop; superOwner gets both.
   await prisma.shopMembership.createMany({
     data: [
-      { userId: owner.id, shopId: shop1.id, role: 'OWNER' },
-      { userId: owner.id, shopId: shop2.id, role: 'OWNER' },
+      { userId: owner1.id, shopId: shop1.id, role: 'OWNER' },
+      { userId: owner2.id, shopId: shop2.id, role: 'OWNER' },
+      { userId: superOwner.id, shopId: shop1.id, role: 'SUPER_OWNER' },
+      { userId: superOwner.id, shopId: shop2.id, role: 'SUPER_OWNER' },
     ],
   });
+  console.log('  ✅ Independent memberships assigned');
 
   // Tax categories
   const gst18_s1 = await prisma.taxCategory.create({
@@ -117,44 +147,52 @@ async function seed() {
   // Sample products for Shop 1
   const products1 = [
     {
-      name: 'USB-C Cable 1m',
+      name: 'USB-C Cable 1m Fast Charging',
       barcode: 'USB001',
       brand: 'Anker',
       model: 'A8187',
+      category: 'Accessories',
       purchaseCost: 250,
       defaultSellingPrice: 350,
       taxCategoryId: gst18_s1.id,
       initialStock: 50,
+      warranty: '1 Year Brand Warranty',
     },
     {
-      name: 'Bluetooth Speaker',
+      name: 'Wireless Bluetooth Speaker',
       barcode: 'SPK001',
       brand: 'JBL',
       model: 'Go 3',
+      category: 'Audio',
       purchaseCost: 2500,
       defaultSellingPrice: 3499,
       taxCategoryId: gst18_s1.id,
       initialStock: 20,
+      warranty: '1 Year Manufacturer Warranty',
     },
     {
-      name: 'Wireless Mouse',
+      name: 'Optical Wireless Mouse',
       barcode: 'MOU001',
       brand: 'Logitech',
       model: 'M240',
+      category: 'Peripherals',
       purchaseCost: 600,
       defaultSellingPrice: 700,
       taxCategoryId: gst12_s1.id,
       initialStock: 30,
+      warranty: '2 Years Replacement Warranty',
     },
     {
-      name: 'Phone Charger 20W',
+      name: 'Fast Phone Charger 25W',
       barcode: null,
       brand: 'Samsung',
       model: 'EP-TA800',
+      category: 'Chargers',
       purchaseCost: 800,
       defaultSellingPrice: 900,
       taxCategoryId: gst18_s1.id,
       initialStock: 15,
+      warranty: '6 Months Warranty',
     },
   ];
 
@@ -168,9 +206,11 @@ async function seed() {
         slug,
         brand: p.brand,
         model: p.model,
+        category: p.category,
         purchaseCost: p.purchaseCost,
         defaultSellingPrice: p.defaultSellingPrice,
         taxCategoryId: p.taxCategoryId,
+        warranty: p.warranty,
       },
     });
     await prisma.inventory.create({
@@ -185,7 +225,7 @@ async function seed() {
           quantityDelta: p.initialStock,
           unitCost: p.purchaseCost,
           notes: 'Seed opening stock',
-          createdBy: owner.id,
+          createdBy: owner1.id,
         },
       });
     }
@@ -194,24 +234,28 @@ async function seed() {
   // Sample products for Shop 2
   const products2 = [
     {
-      name: 'HDMI Cable 2m',
+      name: 'Braided HDMI Cable 4K 2m',
       barcode: 'HDMI001',
       brand: 'Belkin',
       model: 'AV10175bt2M',
+      category: 'Cables',
       purchaseCost: 400,
       defaultSellingPrice: 500,
       taxCategoryId: gst18_s2.id,
       initialStock: 40,
+      warranty: '2 Years Belkin Warranty',
     },
     {
-      name: 'Power Bank 10000mAh',
+      name: 'Fast Charging Power Bank 10000mAh',
       barcode: 'PB001',
       brand: 'MI',
       model: 'PLM13ZM',
+      category: 'Power Banks',
       purchaseCost: 1200,
       defaultSellingPrice: 1599,
       taxCategoryId: gst18_s2.id,
       initialStock: 25,
+      warranty: '1 Year Warranty',
     },
   ];
 
@@ -225,9 +269,11 @@ async function seed() {
         slug,
         brand: p.brand,
         model: p.model,
+        category: p.category,
         purchaseCost: p.purchaseCost,
         defaultSellingPrice: p.defaultSellingPrice,
         taxCategoryId: p.taxCategoryId,
+        warranty: p.warranty,
       },
     });
     await prisma.inventory.create({
@@ -242,7 +288,7 @@ async function seed() {
           quantityDelta: p.initialStock,
           unitCost: p.purchaseCost,
           notes: 'Seed opening stock',
-          createdBy: owner.id,
+          createdBy: owner2.id,
         },
       });
     }
@@ -262,10 +308,9 @@ async function seed() {
 
   console.log('🎉 Seed completed successfully!');
   console.log('\n📋 Login credentials:');
-  console.log('   Email: owner@electronics.com');
-  console.log('   Password: owner123');
-  console.log(`   Shop 1 ID: ${shop1.id}`);
-  console.log(`   Shop 2 ID: ${shop2.id}`);
+  console.log('   Shop 1 Owner: owner1@timecentre.com / owner123');
+  console.log('   Shop 2 Owner: owner2@timecentre.com / owner123');
+  console.log('   Super Owner:  superowner@timecentre.com / super123');
 }
 
 seed()

@@ -1,4 +1,4 @@
-# Electronics Shop Management System — Backend
+# Time Centre Mobile & Electronics Management System — Backend
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ npm run prisma:migrate:deploy
 # Verify migration state
 npm run prisma:migrate:status
 
-# Safe, Idempotent Database Initialization (Creates initial owner & 2 shops without deleting data)
+# Safe, Idempotent Database Initialization (Creates independent owners & 2 shops without deleting data)
 npm run prisma:init:prod
 
 # (Optional DEV only) Seed demo catalog data (destructive — deletes ALL existing data):
@@ -55,8 +55,9 @@ $env:ALLOW_DESTRUCTIVE_TESTS="true"; npm test
 
 ## Default credentials (after init)
 
-- **Email:** `owner@electronics.com` (or value of `INIT_OWNER_EMAIL`)
-- **Password:** Configured via `INIT_OWNER_PASSWORD` (defaults to `Owner@12345` in dev)
+- **Shop 1 Owner:** `owner1@timecentre.com` (dedicated to Shop 1 only)
+- **Shop 2 Owner:** `owner2@timecentre.com` (dedicated to Shop 2 only)
+- **Super Owner:** `superowner@timecentre.com` (business owner with access to both shops)
 
 ## API Base URL
 

@@ -1,6 +1,6 @@
-# Volt Electronics - Management System
+# Time Centre Mobile & Electronics - Management System
 
-A complete Electronics Shop Billing, Inventory & Store Branch Management System built for single-owner multi-shop operations.
+A complete Electronics Shop Billing, Inventory & Store Branch Management System built for Time Centre Mobile & Electronics multi-shop operations.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ cp .env.example .env
 npm run prisma:generate
 npm run prisma:migrate:deploy
 
-# Safe idempotent initialization (creates owner & initial shops without deleting data):
+# Safe idempotent initialization (creates owners & initial shops without deleting data):
 npm run prisma:init:prod
 
 # Optional development demo seed (destructive — clears tables and loads sample inventory):
@@ -59,11 +59,46 @@ npm run prisma:init:prod
 npm run dev
 ```
 
-The frontend talks to the backend at `VITE_API_BASE_URL` (default `http://localhost:4000`).
-Public catalogue slug defaults to `electronics-hub-main` (`VITE_PUBLIC_SHOP_SLUG`).
-Initial owner login (after safe init): `owner@electronics.com` (configured via `INIT_OWNER_PASSWORD`).
+### Store Branches & Isolated Credentials
 
-For complete migration, backup, and deployment details, see [DATABASE_MIGRATION_GUIDE.md](file:///c:/Users/HP/Desktop/electronic-shopping-project/DATABASE_MIGRATION_GUIDE.md).
+| Branch / Role | Location / Address | Contact | Owner Email | Default Password |
+|---|---|---|---|---|
+| **Shop 1** | Main road Bishnugarh Near by Axis Bank Bishnugarh | `7004114744` | `owner@electronics.com` | `Owner@12345` |
+| **Shop 2** | Akhara Chowck Bishnugarh | `7004114744` | `owner2@electronics.com` | `Owner@12345` |
+| **Super Owner** | Multi-Shop Consolidated Access | `7004114744` | `superowner@electronics.com` | `Owner@12345` |
+
+The public catalogue routes dynamically display both branches at `/`, `/shop/time-centre-shop-1`, and `/shop/time-centre-shop-2` with live WhatsApp/Call buttons.
+
+---
+
+## Production Deployment Guide
+
+### Deploying the Frontend (e.g. Vercel)
+1. Set Root Directory to `frontend`.
+2. Framework Preset: **Vite**.
+3. Build Command: `npm run build`.
+4. Output Directory: `dist`.
+5. Environment Variables:
+   - `VITE_API_BASE_URL`: URL of your deployed backend (e.g. `https://your-api.onrender.com`).
+   - `VITE_STORE_NAME`: `Time Centre Mobile & Electronics`.
+   - `VITE_STORE_PHONE`: `7004114744`.
+   - `VITE_STORE_WHATSAPP`: `917004114744`.
+
+### Deploying the Backend (e.g. Render / Railway / VPS)
+1. Set Root Directory to `backend`.
+2. Build Command: `npm install && npm run prisma:generate && npm run prisma:migrate:deploy`.
+3. Start Command: `npm start`.
+4. Environment Variables:
+   - `NODE_ENV`: `production`
+   - `PORT`: `4000` (or platform default)
+   - `DATABASE_URL`: Your pooled PostgreSQL connection string (Neon pooler).
+   - `DIRECT_URL`: Your direct PostgreSQL connection string (Neon direct).
+   - `JWT_SECRET`: Random 32+ character secret string.
+   - `COOKIE_SECRET`: Random 32+ character secret string.
+   - `CORS_ORIGIN`: Your frontend URL (e.g. `https://your-frontend.vercel.app`).
+   - Cloudinary variables for image uploads: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
+
+For complete migration, backup, and architecture details, see [DATABASE_MIGRATION_GUIDE.md](file:///c:/Users/HP/Desktop/electronic-shopping-project/DATABASE_MIGRATION_GUIDE.md).
 
 ---
 

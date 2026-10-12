@@ -12,6 +12,7 @@ import {
   Receipt,
   RotateCcw,
   Camera,
+  Printer,
 } from "lucide-react";
 import { BarcodeScanner } from "./barcode-scanner";
 import { toast } from "sonner";
@@ -34,13 +35,16 @@ type CartLine = {
   product: Product;
   qty: number;
   unitPrice: number;
+  serialNumber?: string;
 };
 
 const money = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 function playBeep(type: "success" | "error" = "success") {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
@@ -85,6 +89,15 @@ export function BillingPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card" | "Other">("Cash");
   const [mobileTab, setMobileTab] = useState<"catalog" | "cart">("catalog");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [autoPrint, setAutoPrint] = useState(() => {
+    try {
+      return localStorage.getItem("time_centre_auto_print") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   // UI state
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -142,6 +155,9 @@ export function BillingPage() {
       setCart([]);
       setConfirmOpen(false);
       setMobileTab("catalog");
+      if (autoPrint && typeof window !== "undefined") {
+        window.open(`/sales/${sale.id}/print`, "_blank");
+      }
       // Invalidate queries so inventory, products, sales history, dashboard & profit/loss refresh
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -178,9 +194,7 @@ export function BillingPage() {
           canAdd = false;
           return prev;
         }
-        return prev.map((l) =>
-          l.product.id === product.id ? { ...l, qty: l.qty + 1 } : l,
-        );
+        return prev.map((l) => (l.product.id === product.id ? { ...l, qty: l.qty + 1 } : l));
       }
       return [
         ...prev,
@@ -188,6 +202,7 @@ export function BillingPage() {
           product,
           qty: 1,
           unitPrice: Number(product.defaultSellingPrice ?? product.purchaseCost ?? 0),
+          serialNumber: "",
         },
       ];
     });
@@ -249,15 +264,20 @@ export function BillingPage() {
         const unitSellingPrice = Number(l.unitPrice);
         const defaultPrice = Number(l.product.defaultSellingPrice ?? l.product.purchaseCost ?? 0);
         const discountAmount =
-          defaultPrice > unitSellingPrice ? Number((defaultPrice - unitSellingPrice).toFixed(2)) : 0;
+          defaultPrice > unitSellingPrice
+            ? Number((defaultPrice - unitSellingPrice).toFixed(2))
+            : 0;
         return {
           productId: l.product.id,
           quantity: Math.max(1, Math.floor(Number(l.qty))),
           unitSellingPrice: Number(unitSellingPrice.toFixed(2)),
           discountAmount,
+          serialNumber: l.serialNumber?.trim() || undefined,
         };
       }),
       paymentMethod,
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
     };
     saleMutation.mutate({ payload, key });
   };
@@ -267,6 +287,8 @@ export function BillingPage() {
     setCart([]);
     setSearchQuery("");
     setBarcodeInput("");
+    setCustomerName("");
+    setCustomerPhone("");
     setPaymentMethod("Cash");
     setMobileTab("catalog");
   };
@@ -295,13 +317,23 @@ export function BillingPage() {
             Payment recorded · Inventory updated
           </p>
           <div className="flex justify-center gap-3" style={{ flexWrap: "wrap" }}>
-            <Button onClick={startNewBill}>
+            <Button onClick={startNewBill} variant="default">
               <Plus />
               New Bill
             </Button>
+            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <a
+                href={`/sales/${completedSale.id}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Printer size={15} className="mr-1.5" />
+                Print Bill
+              </a>
+            </Button>
             <Button asChild variant="outline">
               <Link to="/sales/$id" params={{ id: completedSale.id }}>
-                <Receipt />
+                <Receipt size={15} className="mr-1.5" />
                 View Invoice
               </Link>
             </Button>
@@ -348,7 +380,9 @@ export function BillingPage() {
 
       <div className="pos-grid">
         {/* ── Left: Product search panel ── */}
-        <section className={`pos-catalog-section ${mobileTab === "cart" ? "mobile-hidden-on-small" : ""}`}>
+        <section
+          className={`pos-catalog-section ${mobileTab === "cart" ? "mobile-hidden-on-small" : ""}`}
+        >
           {/* Barcode scan row */}
           <div className="barcode-row" style={{ marginBottom: "0.75rem" }}>
             <div className="search-input" style={{ flex: 1 }}>
@@ -460,7 +494,9 @@ export function BillingPage() {
         </section>
 
         {/* ── Right: Cart panel ── */}
-        <section className={`panel cart-panel pos-cart-section ${mobileTab === "catalog" ? "mobile-hidden-on-small" : ""}`}>
+        <section
+          className={`panel cart-panel pos-cart-section ${mobileTab === "catalog" ? "mobile-hidden-on-small" : ""}`}
+        >
           <div className="panel-header">
             <h2>Current Bill</h2>
             <span className="sample-caption">{cart.reduce((s, l) => s + l.qty, 0)} items</span>
@@ -544,6 +580,16 @@ export function BillingPage() {
                       <span className="ml-auto text-xs font-medium">{money(lineTotal)}</span>
                     </div>
 
+                    <div className="mt-2">
+                      <Input
+                        aria-label={`IMEI or Serial number for ${l.product.name}`}
+                        placeholder="IMEI / Serial no. (optional)"
+                        value={l.serialNumber ?? ""}
+                        onChange={(e) => updateLine(l.product.id, { serialNumber: e.target.value })}
+                        className="h-7 text-xs font-mono"
+                      />
+                    </div>
+
                     {isBelowCost && (
                       <div
                         className="warning-text"
@@ -571,8 +617,45 @@ export function BillingPage() {
               />
             )}
 
+            {/* ── Customer Details & Settings ── */}
+            <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Customer Information (Optional)
+              </h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  placeholder="Customer name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <Input
+                  placeholder="Phone number"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={autoPrint}
+                  onChange={(e) => {
+                    setAutoPrint(e.target.checked);
+                    try {
+                      localStorage.setItem("time_centre_auto_print", String(e.target.checked));
+                    } catch {
+                      // ignore localStorage failure
+                    }
+                  }}
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>Auto-open print dialog after sale</span>
+              </label>
+            </div>
+
             {/* ── Totals & payment ── */}
-            <div className="mt-5">
+            <div className="mt-4">
               <div className="summary-row">
                 <span>Subtotal</span>
                 <strong>{money(subtotal)}</strong>
@@ -635,7 +718,9 @@ export function BillingPage() {
       {cart.length > 0 && mobileTab === "catalog" && (
         <div className="mobile-cart-peek">
           <div className="mobile-cart-peek-info">
-            <span className="mobile-cart-peek-count">{cart.reduce((s, l) => s + l.qty, 0)} item{cart.length !== 1 ? "s" : ""}</span>
+            <span className="mobile-cart-peek-count">
+              {cart.reduce((s, l) => s + l.qty, 0)} item{cart.length !== 1 ? "s" : ""}
+            </span>
             <span className="mobile-cart-peek-total">{money(total)}</span>
           </div>
           <Button

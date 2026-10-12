@@ -32,7 +32,7 @@ export function Brand({ dark = false }: { dark?: boolean }) {
         <Zap size={21} fill="currentColor" />
       </span>
       <span>
-        volt<span className="brand-dot">.</span>
+        Time Centre<span className="brand-dot">.</span>
       </span>
     </span>
   );
@@ -79,7 +79,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
     <div className="app-shell">
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="sidebar-brand">
-          <Link to="/" aria-label="Volt catalogue">
+          <Link to="/" aria-label="Time Centre catalogue">
             <Brand dark />
           </Link>
           <Button
@@ -154,7 +154,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
           </div>
           <div className="topbar-controls">
             {shops.length > 1 && (
-              <label className="shop-switch">
+              <label className="shop-switch" title="Switch active shop">
                 <Store size={16} />
                 <select
                   aria-label="Current shop"
@@ -170,10 +170,13 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               </label>
             )}
             {shops.length <= 1 && activeShop && (
-              <span className="shop-switch">
-                <Store size={16} />
-                <span style={{ padding: "0 4px" }}>{shopName}</span>
-              </span>
+              <div
+                className="current-shop-indicator flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-950 shadow-xs"
+                title={`Billing in: ${shopName}`}
+              >
+                <Store size={15} className="text-emerald-700" />
+                <span>{shopName}</span>
+              </div>
             )}
             <Button
               variant="ghost"

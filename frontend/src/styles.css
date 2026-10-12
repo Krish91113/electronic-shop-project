@@ -1771,12 +1771,15 @@ tbody tr:last-child td {
   right: 4%;
   height: 2px;
   background: linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent);
-  box-shadow: 0 0 10px #10b981, 0 0 4px #34d399;
+  box-shadow:
+    0 0 10px #10b981,
+    0 0 4px #34d399;
   animation: scanLaser 2s ease-in-out infinite;
 }
 
 @keyframes scanLaser {
-  0%, 100% {
+  0%,
+  100% {
     top: 6%;
   }
   50% {
@@ -2025,4 +2028,3 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
-

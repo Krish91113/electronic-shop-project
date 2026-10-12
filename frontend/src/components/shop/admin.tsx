@@ -341,7 +341,13 @@ export function ProductsPage() {
                       </td>
                       <td>
                         <div className="table-actions">
-                          <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`} title="Edit product">
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${p.name}`}
+                            title="Edit product"
+                          >
                             <Link to="/products/$id/edit" params={{ id: p.id }}>
                               <Pencil size={15} />
                             </Link>
@@ -383,7 +389,13 @@ export function ProductsPage() {
                   <div className="mobile-record-top">
                     <ProductThumb product={p} />
                     <div className="table-actions">
-                      <Button asChild variant="ghost" size="icon" aria-label={`Edit ${p.name}`} title="Edit product">
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Edit ${p.name}`}
+                        title="Edit product"
+                      >
                         <Link to="/products/$id/edit" params={{ id: p.id }}>
                           <Pencil size={15} />
                         </Link>
@@ -518,7 +530,9 @@ export function ProductFormPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [existingBarcodeProduct, setExistingBarcodeProduct] = useState<ApiProduct | null>(null);
   const [checkingBarcode, setCheckingBarcode] = useState(false);
-  const [barcodeStatus, setBarcodeStatus] = useState<"idle" | "checking" | "found" | "available">("idle");
+  const [barcodeStatus, setBarcodeStatus] = useState<"idle" | "checking" | "found" | "available">(
+    "idle",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -587,30 +601,38 @@ export function ProductFormPage() {
       toast.error("Purchase cost cannot be negative.");
       return;
     }
-    const sellingPrice = num("defaultSellingPrice");
-    if (sellingPrice < 0) {
+    const rawSellingPrice = form.get("defaultSellingPrice") as string | null;
+    const sellingPrice =
+      rawSellingPrice !== null && rawSellingPrice.trim() !== ""
+        ? Number(rawSellingPrice)
+        : undefined;
+    if (sellingPrice !== undefined && sellingPrice < 0) {
       toast.error("Selling price cannot be negative.");
       return;
     }
 
     // Prevent submitting duplicate product if barcode already exists
     if (!id && existingBarcodeProduct) {
-      toast.error("A product with this barcode already exists. Please receive stock instead or change barcode.");
+      toast.error(
+        "A product with this barcode already exists. Please receive stock instead or change barcode.",
+      );
       return;
     }
 
+    const cleanTaxCategoryId = taxCategoryId && taxCategoryId !== "none" ? taxCategoryId : null;
+
     const payload = {
       name,
-      barcode: barcode.trim() || undefined,
-      brand: str("brand") || undefined,
-      model: str("model") || undefined,
-      category: str("category") || undefined,
-      description: str("description") || undefined,
+      barcode: barcode.trim() ? barcode.trim() : id ? null : undefined,
+      brand: str("brand").trim() ? str("brand").trim() : id ? null : undefined,
+      model: str("model").trim() ? str("model").trim() : id ? null : undefined,
+      category: str("category").trim() ? str("category").trim() : id ? null : undefined,
+      description: str("description").trim() ? str("description").trim() : id ? null : undefined,
       purchaseCost,
-      defaultSellingPrice: sellingPrice || undefined,
+      defaultSellingPrice: sellingPrice !== undefined ? sellingPrice : id ? null : undefined,
       lowStockThreshold: num("lowStockThreshold") || 5,
-      warranty: str("warranty") || undefined,
-      taxCategoryId: taxCategoryId || undefined,
+      warranty: str("warranty").trim() ? str("warranty").trim() : id ? null : undefined,
+      taxCategoryId: cleanTaxCategoryId,
       isPublished,
     };
 
@@ -761,7 +783,11 @@ export function ProductFormPage() {
                           onClick={() => checkBarcode(barcode)}
                           disabled={!barcode.trim() || checkingBarcode}
                         >
-                          {checkingBarcode ? <RefreshCw size={14} className="animate-spin" /> : "Check"}
+                          {checkingBarcode ? (
+                            <RefreshCw size={14} className="animate-spin" />
+                          ) : (
+                            "Check"
+                          )}
                         </Button>
                         <Button
                           type="button"
@@ -778,7 +804,11 @@ export function ProductFormPage() {
 
                   {id && (
                     <Field label="Internal Product ID">
-                      <Input readOnly value={existing?.id ?? "—"} className="bg-muted font-mono text-xs" />
+                      <Input
+                        readOnly
+                        value={existing?.id ?? "—"}
+                        className="bg-muted font-mono text-xs"
+                      />
                     </Field>
                   )}
                 </div>
@@ -789,24 +819,37 @@ export function ProductFormPage() {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                       <div className="flex-1 space-y-2">
-                        <h4 className="font-semibold text-sm">Product Already Exists with this Barcode!</h4>
+                        <h4 className="font-semibold text-sm">
+                          Product Already Exists with this Barcode!
+                        </h4>
                         <p className="text-xs">
                           <strong>{existingBarcodeProduct.name}</strong>
                           {existingBarcodeProduct.brand && ` (${existingBarcodeProduct.brand})`}
-                          {existingBarcodeProduct.inventory != null && ` · Current Stock: ${existingBarcodeProduct.inventory.quantity} units`}
-                          {existingBarcodeProduct.defaultSellingPrice != null && ` · Price: ₹${existingBarcodeProduct.defaultSellingPrice}`}
+                          {existingBarcodeProduct.inventory != null &&
+                            ` · Current Stock: ${existingBarcodeProduct.inventory.quantity} units`}
+                          {existingBarcodeProduct.defaultSellingPrice != null &&
+                            ` · Price: ₹${existingBarcodeProduct.defaultSellingPrice}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          To avoid creating duplicates, you can receive additional stock for this existing product or edit its details.
+                          To avoid creating duplicates, you can receive additional stock for this
+                          existing product or edit its details.
                         </p>
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <Button asChild size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="default"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
                             <Link to="/inventory/receive">
                               <Boxes size={14} className="mr-1" /> Receive Stock
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link to="/products/$id/edit" params={{ id: existingBarcodeProduct.id }}>
+                            <Link
+                              to="/products/$id/edit"
+                              params={{ id: existingBarcodeProduct.id }}
+                            >
                               <Pencil size={14} className="mr-1" /> Edit Product
                             </Link>
                           </Button>
@@ -922,12 +965,15 @@ export function ProductFormPage() {
                     />
                   </Field>
                   <Field label="GST / Tax category">
-                    <Select value={taxCategoryId} onValueChange={setTaxCategoryId}>
+                    <Select
+                      value={taxCategoryId || "none"}
+                      onValueChange={(val) => setTaxCategoryId(val === "none" ? "" : val)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="None (0%)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None (0%)</SelectItem>
+                        <SelectItem value="none">None (0%)</SelectItem>
                         {taxCats?.map((tc) => (
                           <SelectItem key={tc.id} value={tc.id}>
                             {tc.name} ({tc.rate}%)
@@ -998,7 +1044,9 @@ export function ProductFormPage() {
                   <div className="dropzone">
                     <Upload size={28} className="text-muted-foreground mb-1" />
                     <span className="font-medium">Select an image or capture with camera</span>
-                    <small className="text-muted-foreground">Supported: JPEG, PNG, WebP (Max 5MB)</small>
+                    <small className="text-muted-foreground">
+                      Supported: JPEG, PNG, WebP (Max 5MB)
+                    </small>
                     <div className="flex gap-2 mt-2">
                       <Button
                         type="button"
@@ -1718,7 +1766,7 @@ export function ReceiveStockPage() {
         onScan={(res) => {
           setBarcode(res.barcode);
           setScannerOpen(false);
-          handleScan(res.barcode);
+          void handleScan(res.barcode);
         }}
         title="Scan Barcode to Receive Stock"
         description="Position the barcode within the camera viewfinder."
@@ -1763,7 +1811,10 @@ function rangeFor(option: string): { from: string; to: string } {
 
 const formatDate = (value: string) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [y, m, d] = value.split("-").map(Number);
+    const parts = value.split("-").map(Number);
+    const y = parts[0] ?? 2026;
+    const m = parts[1] ?? 1;
+    const d = parts[2] ?? 1;
     return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -2030,16 +2081,34 @@ export function SalesPage() {
                         </span>
                       </td>
                       <td>
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`View ${s.invoiceNumber}`}
-                        >
-                          <Link to="/sales/$id" params={{ id: s.id }}>
-                            <ArrowUpRight size={15} />
-                          </Link>
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Print ${s.invoiceNumber}`}
+                            title="Print Bill"
+                          >
+                            <a
+                              href={`/sales/${s.id}/print`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Printer size={15} />
+                            </a>
+                          </Button>
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`View ${s.invoiceNumber}`}
+                            title="View Invoice"
+                          >
+                            <Link to="/sales/$id" params={{ id: s.id }}>
+                              <ArrowUpRight size={15} />
+                            </Link>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2110,13 +2179,11 @@ export function InvoicePage() {
             Back to sales
           </Link>
         </Button>
-        <Button variant="outline" onClick={() => window.print()}>
-          <Download size={15} />
-          Download PDF
-        </Button>
-        <Button onClick={() => window.print()}>
-          <Printer size={15} />
-          Print
+        <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <a href={`/sales/${id}/print`} target="_blank" rel="noopener noreferrer">
+            <Printer size={15} />
+            Print Customer Bill
+          </a>
         </Button>
       </PageHeader>
 
@@ -2128,15 +2195,42 @@ export function InvoicePage() {
         <EmptyState title="Invoice not found" detail="Choose an invoice from sales history." />
       ) : (
         <div className="invoice">
+          {sale.status === "CANCELLED" && (
+            <div className="mb-4 rounded-md border-2 border-dashed border-red-600 bg-red-50/70 p-3 text-center text-red-700">
+              <span className="text-lg font-black tracking-widest sm:text-xl">
+                *** CANCELLED SALE ***
+              </span>
+              <p className="text-xs font-semibold mt-0.5">
+                This transaction has been voided. Refund processed.
+              </p>
+            </div>
+          )}
+
           <div className="invoice-header">
             <div>
-              <Brand />
-              <h3 className="mt-5">{sale.shop?.name ?? "Shop"}</h3>
-              {sale.shop?.address && <p>{sale.shop.address}</p>}
+              <h3 className="text-xl font-bold text-slate-900">
+                {sale.shop?.name ?? "Time Centre Mobile & Electronics"}
+              </h3>
+              {sale.shop?.address && (
+                <p className="text-xs text-muted-foreground">{sale.shop.address}</p>
+              )}
               {(sale.shop?.contactPhone || sale.shop?.contactEmail) && (
-                <p>
+                <p className="text-xs text-muted-foreground">
                   {[sale.shop?.contactPhone, sale.shop?.contactEmail].filter(Boolean).join(" · ")}
                 </p>
+              )}
+              {sale.shop?.gstin && (
+                <p className="text-xs font-semibold text-foreground mt-0.5">
+                  GSTIN: {sale.shop.gstin}
+                </p>
+              )}
+              {(sale.customerName || sale.customerPhone) && (
+                <div className="mt-3 text-xs border-t pt-2">
+                  <span className="font-semibold text-foreground">Billed to: </span>
+                  {sale.customerName && <span>{sale.customerName}</span>}
+                  {sale.customerName && sale.customerPhone && <span> · </span>}
+                  {sale.customerPhone && <span>Tel: {sale.customerPhone}</span>}
+                </div>
               )}
             </div>
             <div>
@@ -2163,7 +2257,19 @@ export function InvoicePage() {
             <tbody>
               {sale.items.map((it) => (
                 <tr key={it.id}>
-                  <td>{it.productNameSnapshot}</td>
+                  <td>
+                    <div className="font-medium">{it.productNameSnapshot}</div>
+                    {it.serialNumber && (
+                      <div className="text-xs font-mono text-muted-foreground">
+                        IMEI/SN: {it.serialNumber}
+                      </div>
+                    )}
+                    {it.product?.warranty && (
+                      <div className="text-xs text-emerald-800 font-medium">
+                        Warranty: {it.product.warranty}
+                      </div>
+                    )}
+                  </td>
                   <td>{it.quantity}</td>
                   <td>{fmt(it.unitSellingPrice)}</td>
                   <td>{fmt(it.lineTotal)}</td>
@@ -2194,9 +2300,10 @@ export function InvoicePage() {
           </div>
 
           <div className="invoice-footer">
-            Thank you for your business.
-            <br />
-            PDF uses your browser's "Save as PDF" option.
+            <p className="font-medium text-foreground">Thank you for your business.</p>
+            {sale.shop?.invoiceFooter && (
+              <p className="mt-1 whitespace-pre-line text-xs">{sale.shop.invoiceFooter}</p>
+            )}
           </div>
         </div>
       )}
@@ -2366,6 +2473,7 @@ export function SettingsPage() {
         contactPhone: str("contactPhone") || undefined,
         contactEmail: str("contactEmail") || undefined,
         address: str("address") || undefined,
+        gstin: str("gstin") || undefined,
         invoicePrefix: str("invoicePrefix") || undefined,
         invoiceFooter: str("invoiceFooter") || undefined,
       });
@@ -2424,6 +2532,13 @@ export function SettingsPage() {
                   </Field>
                   <Field label="Shop address">
                     <Input name="address" defaultValue={shop?.address} placeholder="Shop address" />
+                  </Field>
+                  <Field label="GSTIN">
+                    <Input
+                      name="gstin"
+                      defaultValue={shop?.gstin}
+                      placeholder="e.g. 27AAAAA0000A1Z5"
+                    />
                   </Field>
                 </div>
               </section>

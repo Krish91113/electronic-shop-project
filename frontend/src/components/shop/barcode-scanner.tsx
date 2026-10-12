@@ -29,13 +29,7 @@ export interface BarcodeScannerProps {
 }
 
 type ScannerStatus =
-  | "idle"
-  | "requesting"
-  | "scanning"
-  | "success"
-  | "error"
-  | "denied"
-  | "unsupported";
+  "idle" | "requesting" | "scanning" | "success" | "error" | "denied" | "unsupported";
 
 // ─── Barcode validation ──────────────────────────────────────────
 
@@ -145,9 +139,8 @@ export function BarcodeScanner({
       setStatus("scanning");
 
       // Dynamically import @zxing/browser to avoid SSR issues
-      const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } = await import(
-        "@zxing/library"
-      );
+      const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } =
+        await import("@zxing/library");
 
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [
@@ -172,10 +165,7 @@ export function BarcodeScanner({
           const now = Date.now();
 
           // Prevent duplicate scans within 3 seconds of the same barcode
-          if (
-            normalized === lastScannedRef.current &&
-            now - lastScanTimeRef.current < 3000
-          ) {
+          if (normalized === lastScannedRef.current && now - lastScanTimeRef.current < 3000) {
             return;
           }
 
@@ -201,13 +191,10 @@ export function BarcodeScanner({
       });
     } catch (err) {
       const error = err as Error;
-      if (
-        error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError"
-      ) {
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
         setStatus("denied");
         setErrorMessage(
-          "Camera permission was denied. Please allow camera access in your browser settings, or use manual entry."
+          "Camera permission was denied. Please allow camera access in your browser settings, or use manual entry.",
         );
       } else if (error.name === "NotFoundError") {
         setStatus("error");
@@ -215,7 +202,7 @@ export function BarcodeScanner({
       } else if (error.name === "NotReadableError") {
         setStatus("error");
         setErrorMessage(
-          "Camera is in use by another application. Close other camera apps and try again."
+          "Camera is in use by another application. Close other camera apps and try again.",
         );
       } else {
         setStatus("error");
@@ -239,13 +226,14 @@ export function BarcodeScanner({
 
       // Small delay to let dialog mount before starting camera
       const timer = setTimeout(() => {
-        startScanning();
+        void startScanning();
       }, 300);
 
       return () => clearTimeout(timer);
     } else {
       // Stop camera when dialog closes
       stopCamera();
+      return undefined;
     }
   }, [open, startScanning, stopCamera]);
 
@@ -379,13 +367,7 @@ export function BarcodeScanner({
           {/* Camera preview area */}
           {!showManual && (
             <div className="scanner-viewport">
-              <video
-                ref={videoRef}
-                className="scanner-video"
-                playsInline
-                muted
-                autoPlay
-              />
+              <video ref={videoRef} className="scanner-video" playsInline muted autoPlay />
 
               {/* Scan frame overlay */}
               {status === "scanning" && (
@@ -407,12 +389,13 @@ export function BarcodeScanner({
               </div>
 
               {/* Error message */}
-              {errorMessage && (status === "denied" || status === "error" || status === "unsupported") && (
-                <div className="scanner-error">
-                  <AlertTriangle size={16} />
-                  <p>{errorMessage}</p>
-                </div>
-              )}
+              {errorMessage &&
+                (status === "denied" || status === "error" || status === "unsupported") && (
+                  <div className="scanner-error">
+                    <AlertTriangle size={16} />
+                    <p>{errorMessage}</p>
+                  </div>
+                )}
 
               {/* Success indicator */}
               {status === "success" && (
@@ -446,16 +429,11 @@ export function BarcodeScanner({
                   autoFocus
                   className="font-mono"
                 />
-                <Button
-                  onClick={handleManualSubmit}
-                  disabled={!manualInput.trim()}
-                >
+                <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
                   Submit
                 </Button>
               </div>
-              {errorMessage && (
-                <p className="text-sm text-destructive mt-2">{errorMessage}</p>
-              )}
+              {errorMessage && <p className="text-sm text-destructive mt-2">{errorMessage}</p>}
             </div>
           )}
 
@@ -500,11 +478,7 @@ export function BarcodeScanner({
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               <X size={16} /> Cancel
             </Button>
           </div>

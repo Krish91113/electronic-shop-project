@@ -29,8 +29,9 @@ async function nextInvoiceNumber(tx, shop) {
 }
 
 export async function createSale(shopId, data, userId) {
-  return prisma.$transaction(async (tx) => {
-    const shop = await tx.shop.findUniqueOrThrow({ where: { id: shopId } });
+  return prisma.$transaction(
+    async (tx) => {
+      const shop = await tx.shop.findUniqueOrThrow({ where: { id: shopId } });
 
     let subtotal = 0;
     let discountTotal = 0;
@@ -90,6 +91,7 @@ export async function createSale(shopId, data, userId) {
         taxCategorySnapshot: product.taxName || null,
         taxRateSnapshot: taxRate,
         taxAmount: lineTax,
+        serialNumber: item.serialNumber || null,
         unitCostSnapshot: Number(product.purchaseCost),
         lineTotal,
       });
@@ -125,6 +127,8 @@ export async function createSale(shopId, data, userId) {
         taxTotal,
         totalAmount,
         paymentStatus: 'PAID',
+        customerName: data.customerName || null,
+        customerPhone: data.customerPhone || null,
         notes: data.notes || null,
         createdBy: userId,
         completedAt: new Date(),
@@ -160,13 +164,34 @@ export async function createSale(shopId, data, userId) {
     }
 
     return { ...sale, payments: [payment] };
-  }, { timeout: 15000 });
+  }, { maxWait: 30000, timeout: 60000 });
 }
 
 export async function getSale(shopId, saleId) {
   const sale = await prisma.sale.findFirst({
     where: { id: saleId, shopId },
-    include: { items: true, payments: true },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: { warranty: true },
+          },
+        },
+      },
+      payments: true,
+      shop: {
+        select: {
+          name: true,
+          code: true,
+          contactPhone: true,
+          contactEmail: true,
+          address: true,
+          gstin: true,
+          logoUrl: true,
+          invoiceFooter: true,
+        },
+      },
+    },
   });
   if (!sale) throw new NotFoundError('Sale not found');
   return sale;
@@ -198,14 +223,26 @@ export async function listSales(shopId, query) {
 
 export async function getInvoice(shopId, saleId) {
   const sale = await prisma.sale.findFirst({
-    where: { id: saleId, shopId, status: { in: ['COMPLETED', 'REFUNDED'] } },
+    where: { id: saleId, shopId },
     include: {
-      items: true,
+      items: {
+        include: {
+          product: {
+            select: { warranty: true },
+          },
+        },
+      },
       payments: true,
       shop: {
         select: {
-          name: true, code: true, contactPhone: true,
-          contactEmail: true, address: true,
+          name: true,
+          code: true,
+          contactPhone: true,
+          contactEmail: true,
+          address: true,
+          gstin: true,
+          logoUrl: true,
+          invoiceFooter: true,
         },
       },
     },

@@ -5,6 +5,7 @@ const saleItemSchema = z.object({
   quantity: z.coerce.number().int().min(1),
   unitSellingPrice: z.coerce.number().min(0),
   discountAmount: z.coerce.number().min(0).optional().default(0),
+  serialNumber: z.string().trim().max(100).optional().nullable(),
 });
 
 const paymentMethodSchema = z.preprocess(
@@ -17,6 +18,8 @@ export const createSaleSchema = z.object({
     items: z.array(saleItemSchema).min(1),
     paymentMethod: paymentMethodSchema,
     paymentReference: z.string().optional(),
+    customerName: z.string().trim().max(100).optional().nullable(),
+    customerPhone: z.string().trim().max(30).optional().nullable(),
     notes: z.string().optional(),
   }),
 });

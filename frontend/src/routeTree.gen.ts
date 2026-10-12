@@ -22,7 +22,10 @@ import { Route as ProductsIdRouteImport } from './routes/products.$id'
 import { Route as ProductsNewRouteImport } from './routes/products.new'
 import { Route as ReportsProfitLossRouteImport } from './routes/reports.profit-loss'
 import { Route as SalesIdRouteImport } from './routes/sales.$id'
+import { Route as ShopShopSlugRouteImport } from './routes/shop.$shopSlug'
 import { Route as ProductsIdEditRouteImport } from './routes/products.$id.edit'
+import { Route as SalesIdPrintRouteImport } from './routes/sales.$id.print'
+import { Route as ShopShopSlugProductsProductSlugRouteImport } from './routes/shop.$shopSlug.products.$productSlug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -89,11 +92,27 @@ const SalesIdRoute = SalesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => SalesRoute,
 } as any)
+const ShopShopSlugRoute = ShopShopSlugRouteImport.update({
+  id: '/shop/$shopSlug',
+  path: '/shop/$shopSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsIdEditRoute = ProductsIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
   getParentRoute: () => ProductsIdRoute,
 } as any)
+const SalesIdPrintRoute = SalesIdPrintRouteImport.update({
+  id: '/print',
+  path: '/print',
+  getParentRoute: () => SalesIdRoute,
+} as any)
+const ShopShopSlugProductsProductSlugRoute =
+  ShopShopSlugProductsProductSlugRouteImport.update({
+    id: '/products/$productSlug',
+    path: '/products/$productSlug',
+    getParentRoute: () => ShopShopSlugRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,8 +127,11 @@ export interface FileRoutesByFullPath {
   '/products/$id': typeof ProductsIdRouteWithChildren
   '/products/new': typeof ProductsNewRoute
   '/reports/profit-loss': typeof ReportsProfitLossRoute
-  '/sales/$id': typeof SalesIdRoute
+  '/sales/$id': typeof SalesIdRouteWithChildren
+  '/shop/$shopSlug': typeof ShopShopSlugRouteWithChildren
   '/products/$id/edit': typeof ProductsIdEditRoute
+  '/sales/$id/print': typeof SalesIdPrintRoute
+  '/shop/$shopSlug/products/$productSlug': typeof ShopShopSlugProductsProductSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -124,8 +146,11 @@ export interface FileRoutesByTo {
   '/products/$id': typeof ProductsIdRouteWithChildren
   '/products/new': typeof ProductsNewRoute
   '/reports/profit-loss': typeof ReportsProfitLossRoute
-  '/sales/$id': typeof SalesIdRoute
+  '/sales/$id': typeof SalesIdRouteWithChildren
+  '/shop/$shopSlug': typeof ShopShopSlugRouteWithChildren
   '/products/$id/edit': typeof ProductsIdEditRoute
+  '/sales/$id/print': typeof SalesIdPrintRoute
+  '/shop/$shopSlug/products/$productSlug': typeof ShopShopSlugProductsProductSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -141,8 +166,11 @@ export interface FileRoutesById {
   '/products/$id': typeof ProductsIdRouteWithChildren
   '/products/new': typeof ProductsNewRoute
   '/reports/profit-loss': typeof ReportsProfitLossRoute
-  '/sales/$id': typeof SalesIdRoute
+  '/sales/$id': typeof SalesIdRouteWithChildren
+  '/shop/$shopSlug': typeof ShopShopSlugRouteWithChildren
   '/products/$id/edit': typeof ProductsIdEditRoute
+  '/sales/$id/print': typeof SalesIdPrintRoute
+  '/shop/$shopSlug/products/$productSlug': typeof ShopShopSlugProductsProductSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -160,7 +188,10 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/reports/profit-loss'
     | '/sales/$id'
+    | '/shop/$shopSlug'
     | '/products/$id/edit'
+    | '/sales/$id/print'
+    | '/shop/$shopSlug/products/$productSlug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -176,7 +207,10 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/reports/profit-loss'
     | '/sales/$id'
+    | '/shop/$shopSlug'
     | '/products/$id/edit'
+    | '/sales/$id/print'
+    | '/shop/$shopSlug/products/$productSlug'
   id:
     | '__root__'
     | '/'
@@ -192,7 +226,10 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/reports/profit-loss'
     | '/sales/$id'
+    | '/shop/$shopSlug'
     | '/products/$id/edit'
+    | '/sales/$id/print'
+    | '/shop/$shopSlug/products/$productSlug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -205,6 +242,7 @@ export interface RootRouteChildren {
   SalesRoute: typeof SalesRouteWithChildren
   SettingsRoute: typeof SettingsRoute
   ReportsProfitLossRoute: typeof ReportsProfitLossRoute
+  ShopShopSlugRoute: typeof ShopShopSlugRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -300,12 +338,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalesIdRouteImport
       parentRoute: typeof SalesRoute
     }
+    '/shop/$shopSlug': {
+      id: '/shop/$shopSlug'
+      path: '/shop/$shopSlug'
+      fullPath: '/shop/$shopSlug'
+      preLoaderRoute: typeof ShopShopSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/products/$id/edit': {
       id: '/products/$id/edit'
       path: '/edit'
       fullPath: '/products/$id/edit'
       preLoaderRoute: typeof ProductsIdEditRouteImport
       parentRoute: typeof ProductsIdRoute
+    }
+    '/sales/$id/print': {
+      id: '/sales/$id/print'
+      path: '/print'
+      fullPath: '/sales/$id/print'
+      preLoaderRoute: typeof SalesIdPrintRouteImport
+      parentRoute: typeof SalesIdRoute
+    }
+    '/shop/$shopSlug/products/$productSlug': {
+      id: '/shop/$shopSlug/products/$productSlug'
+      path: '/products/$productSlug'
+      fullPath: '/shop/$shopSlug/products/$productSlug'
+      preLoaderRoute: typeof ShopShopSlugProductsProductSlugRouteImport
+      parentRoute: typeof ShopShopSlugRoute
     }
   }
 }
@@ -348,15 +407,38 @@ const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
   ProductsRouteChildren,
 )
 
+interface SalesIdRouteChildren {
+  SalesIdPrintRoute: typeof SalesIdPrintRoute
+}
+
+const SalesIdRouteChildren: SalesIdRouteChildren = {
+  SalesIdPrintRoute: SalesIdPrintRoute,
+}
+
+const SalesIdRouteWithChildren =
+  SalesIdRoute._addFileChildren(SalesIdRouteChildren)
+
 interface SalesRouteChildren {
-  SalesIdRoute: typeof SalesIdRoute
+  SalesIdRoute: typeof SalesIdRouteWithChildren
 }
 
 const SalesRouteChildren: SalesRouteChildren = {
-  SalesIdRoute: SalesIdRoute,
+  SalesIdRoute: SalesIdRouteWithChildren,
 }
 
 const SalesRouteWithChildren = SalesRoute._addFileChildren(SalesRouteChildren)
+
+interface ShopShopSlugRouteChildren {
+  ShopShopSlugProductsProductSlugRoute: typeof ShopShopSlugProductsProductSlugRoute
+}
+
+const ShopShopSlugRouteChildren: ShopShopSlugRouteChildren = {
+  ShopShopSlugProductsProductSlugRoute: ShopShopSlugProductsProductSlugRoute,
+}
+
+const ShopShopSlugRouteWithChildren = ShopShopSlugRoute._addFileChildren(
+  ShopShopSlugRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -368,16 +450,8 @@ const rootRouteChildren: RootRouteChildren = {
   SalesRoute: SalesRouteWithChildren,
   SettingsRoute: SettingsRoute,
   ReportsProfitLossRoute: ReportsProfitLossRoute,
+  ShopShopSlugRoute: ShopShopSlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

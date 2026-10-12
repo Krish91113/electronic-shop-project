@@ -27,7 +27,32 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SHOP_KEY = "volt_active_shop_id";
+const SHOP_KEY = "time_centre_active_shop_id";
+
+function getStoredShop(): string | null {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      return window.sessionStorage.getItem(SHOP_KEY);
+    }
+  } catch {
+    // fallback
+  }
+  return null;
+}
+
+function setStoredShop(shopId: string | null) {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      if (shopId) {
+        window.sessionStorage.setItem(SHOP_KEY, shopId);
+      } else {
+        window.sessionStorage.removeItem(SHOP_KEY);
+      }
+    }
+  } catch {
+    // fallback
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -39,12 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const resolveShop = useCallback((u: User, preferredId?: string | null) => {
-    const preferred = preferredId ?? sessionStorage.getItem(SHOP_KEY);
+    const preferred = preferredId ?? getStoredShop();
     const shop = preferred ? (u.shops.find((s) => s.id === preferred) ?? u.shops[0]) : u.shops[0];
     if (shop) {
       setActiveShopState(shop);
       setActiveShop(shop.id);
-      sessionStorage.setItem(SHOP_KEY, shop.id);
+      setStoredShop(shop.id);
     }
   }, []);
 
@@ -73,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setActiveShopState(null);
       setActiveShop(null);
-      sessionStorage.removeItem(SHOP_KEY);
+      setStoredShop(null);
       queryClient.clear();
     });
     return () => setUnauthorizedHandler(null);
@@ -100,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setActiveShopState(null);
       setActiveShop(null);
-      sessionStorage.removeItem(SHOP_KEY);
+      setStoredShop(null);
       queryClient.clear();
     }
   }, [queryClient]);
@@ -112,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (shop) {
         setActiveShopState(shop);
         setActiveShop(shop.id);
-        sessionStorage.setItem(SHOP_KEY, shop.id);
+        setStoredShop(shop.id);
         // Drop all cached data so the next render fetches for the new shop.
         queryClient.clear();
       }

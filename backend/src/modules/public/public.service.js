@@ -19,6 +19,97 @@ const PUBLIC_PRODUCT_SELECT = {
   },
 };
 
+export async function listPublicShops() {
+  const shops = await prisma.shop.findMany({
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      address: true,
+      contactPhone: true,
+      logoUrl: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  const result = await Promise.all(
+    shops.map(async (shop) => {
+      const [productCount, inStockCount] = await Promise.all([
+        prisma.product.count({
+          where: {
+            shopId: shop.id,
+            isPublished: true,
+            isActive: true,
+          },
+        }),
+        prisma.product.count({
+          where: {
+            shopId: shop.id,
+            isPublished: true,
+            isActive: true,
+            inventory: { quantity: { gt: 0 } },
+          },
+        }),
+      ]);
+
+      return {
+        name: shop.name,
+        slug: shop.slug,
+        address: shop.address,
+        contactPhone: shop.contactPhone,
+        logoUrl: shop.logoUrl,
+        productCount,
+        inStockCount,
+      };
+    })
+  );
+
+  return result;
+}
+
+export async function getPublicShop(shopSlug) {
+  const shop = await prisma.shop.findUnique({
+    where: { slug: shopSlug },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      address: true,
+      contactPhone: true,
+      logoUrl: true,
+    },
+  });
+  if (!shop) throw new NotFoundError('Shop not found');
+
+  const [productCount, inStockCount] = await Promise.all([
+    prisma.product.count({
+      where: {
+        shopId: shop.id,
+        isPublished: true,
+        isActive: true,
+      },
+    }),
+    prisma.product.count({
+      where: {
+        shopId: shop.id,
+        isPublished: true,
+        isActive: true,
+        inventory: { quantity: { gt: 0 } },
+      },
+    }),
+  ]);
+
+  return {
+    name: shop.name,
+    slug: shop.slug,
+    address: shop.address,
+    contactPhone: shop.contactPhone,
+    logoUrl: shop.logoUrl,
+    productCount,
+    inStockCount,
+  };
+}
+
 export async function listPublicProducts(shopSlug, query) {
   const shop = await prisma.shop.findUnique({ where: { slug: shopSlug } });
   if (!shop) throw new NotFoundError('Shop not found');
@@ -26,12 +117,25 @@ export async function listPublicProducts(shopSlug, query) {
   const { page, limit, skip } = parsePagination(query);
   const where = { shopId: shop.id, isPublished: true, isActive: true };
 
+  if (query.inStock === 'true' || query.inStock === true) {
+    where.inventory = { quantity: { gt: 0 } };
+  }
+
+  if (query.category) {
+    where.category = { equals: query.category, mode: 'insensitive' };
+  }
+
   if (query.search) {
-    where.OR = [
-      { name: { contains: query.search, mode: 'insensitive' } },
-      { brand: { contains: query.search, mode: 'insensitive' } },
-      { model: { contains: query.search, mode: 'insensitive' } },
-    ];
+    const s = String(query.search).trim();
+    if (s) {
+      where.OR = [
+        { name: { contains: s, mode: 'insensitive' } },
+        { brand: { contains: s, mode: 'insensitive' } },
+        { model: { contains: s, mode: 'insensitive' } },
+        { description: { contains: s, mode: 'insensitive' } },
+        { category: { contains: s, mode: 'insensitive' } },
+      ];
+    }
   }
   if (query.brand) where.brand = { contains: query.brand, mode: 'insensitive' };
 
@@ -50,11 +154,14 @@ export async function listPublicProducts(shopSlug, query) {
   ]);
 
   // Map to public response: show availability but not exact count
-  const mapped = products.map((p) => ({
-    ...p,
-    inStock: p.inventory ? p.inventory.quantity > 0 : false,
-    inventory: undefined,
-  }));
+  const mapped = products.map((p) => {
+    const inStock = p.inventory ? p.inventory.quantity > 0 : false;
+    const { inventory, ...rest } = p;
+    return {
+      ...rest,
+      inStock,
+    };
+  });
 
   return { products: mapped, pagination: paginationMeta(total, page, limit) };
 }
@@ -77,9 +184,10 @@ export async function getPublicProduct(shopSlug, slugOrId) {
   });
   if (!product) throw new NotFoundError('Product not found');
 
+  const inStock = product.inventory ? product.inventory.quantity > 0 : false;
+  const { inventory, ...rest } = product;
   return {
-    ...product,
-    inStock: product.inventory ? product.inventory.quantity > 0 : false,
-    inventory: undefined,
+    ...rest,
+    inStock,
   };
 }

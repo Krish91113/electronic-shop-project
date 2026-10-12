@@ -1,6 +1,6 @@
-# Volt Electronics - Management System
+# Time Centre Mobile & Electronics - Management System
 
-A complete, responsive Electronics Shop Billing & Inventory Management System for Volt Electronics.
+A complete, responsive Electronics Shop Billing & Inventory Management System for Time Centre Mobile & Electronics.
 
 ## Features
 
