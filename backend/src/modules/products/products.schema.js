@@ -39,8 +39,12 @@ export const createProductSchema = z.object({
     name: z.string().min(1, 'Product name is required'),
     brand: optionalCleanString,
     model: optionalCleanString,
+    variant: optionalCleanString,
+    color: optionalCleanString,
     category: optionalCleanString,
     description: optionalCleanString,
+    hsnCode: optionalCleanString,
+    trackSerial: z.boolean().optional(),
     purchaseCost: z.coerce.number().min(0, 'Purchase cost cannot be negative'),
     defaultSellingPrice: optionalPrice,
     pricingRule: z
@@ -66,8 +70,12 @@ export const updateProductSchema = z.object({
     name: z.string().min(1, 'Product name is required').optional(),
     brand: optionalCleanString,
     model: optionalCleanString,
+    variant: optionalCleanString,
+    color: optionalCleanString,
     category: optionalCleanString,
     description: optionalCleanString,
+    hsnCode: optionalCleanString,
+    trackSerial: z.boolean().optional(),
     purchaseCost: z.coerce.number().min(0, 'Purchase cost cannot be negative').optional(),
     defaultSellingPrice: optionalPrice,
     pricingRule: z
@@ -92,12 +100,25 @@ export const scanBarcodeSchema = z.object({
   }),
 });
 
+export const searchModelsSchema = z.object({
+  query: z.object({
+    q: z.string().optional(),
+    brand: z.string().optional(),
+    category: z.string().optional(),
+  }),
+});
+
 export const listProductsSchema = z.object({
   query: z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
     search: z.string().optional(),
     brand: z.string().optional(),
+    category: z.string().optional(),
+    isActive: z.string().optional(),
+    group: z.string().optional(),
+  }),
+});
     isActive: z.string().optional(),
   }),
 });

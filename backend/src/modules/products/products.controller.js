@@ -1,5 +1,32 @@
 import * as service from './products.service.js';
 
+export async function searchModels(req, res, next) {
+  try {
+    const results = await service.searchModels(req.shopId, req.query);
+    res.json({ data: results });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getBrands(req, res, next) {
+  try {
+    const brands = await service.getBrands(req.shopId, req.query.q);
+    res.json({ data: brands });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getCategories(req, res, next) {
+  try {
+    const categories = await service.getCategories(req.shopId, req.query.q);
+    res.json({ data: categories });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req, res, next) {
   try {
     const product = await service.createProduct(req.shopId, req.body, req.user.id);

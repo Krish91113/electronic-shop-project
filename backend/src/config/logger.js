@@ -7,7 +7,15 @@ const logger = pino({
     env.NODE_ENV === 'development'
       ? { target: 'pino/file', options: { destination: 1 } }
       : undefined,
-  redact: ['req.headers.cookie', 'req.headers.authorization'],
+  redact: [
+    'req.headers.cookie',
+    'req.headers.authorization',
+    'customerPhone',
+    'customerAadhaar',
+    'customerGstin',
+    'password',
+    'authorization',
+  ],
 });
 
 export default logger;

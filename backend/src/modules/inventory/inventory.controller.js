@@ -18,6 +18,15 @@ export async function adjust(req, res, next) {
   }
 }
 
+export async function reconcile(req, res, next) {
+  try {
+    const result = await service.reconcileInventory(req.shopId, req.user.id);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function list(req, res, next) {
   try {
     const result = await service.listInventory(req.shopId, req.query);

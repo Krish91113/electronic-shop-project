@@ -5,6 +5,7 @@ import {
   createProductSchema,
   updateProductSchema,
   scanBarcodeSchema,
+  searchModelsSchema,
   listProductsSchema,
 } from './products.schema.js';
 import * as ctrl from './products.controller.js';
@@ -12,6 +13,10 @@ import * as ctrl from './products.controller.js';
 const router = Router();
 
 router.use(authenticate, resolveShop);
+
+router.get('/models/search', validate(searchModelsSchema), ctrl.searchModels);
+router.get('/brands', ctrl.getBrands);
+router.get('/categories', ctrl.getCategories);
 
 router.post('/scan', validate(scanBarcodeSchema), ctrl.scan);
 router.post('/', validate(createProductSchema), ctrl.create);

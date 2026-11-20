@@ -15,6 +15,7 @@ router.use(authenticate, resolveShop);
 
 router.post('/receive', idempotent('inventory.receive'), validate(receiveStockSchema), ctrl.receive);
 router.post('/adjust', validate(adjustStockSchema), ctrl.adjust);
+router.post('/reconcile', ctrl.reconcile);
 router.get('/', ctrl.list);
 router.get('/low-stock', ctrl.lowStock);
 router.get('/movements', validate(listMovementsSchema), ctrl.movements);

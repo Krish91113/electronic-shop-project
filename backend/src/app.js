@@ -21,6 +21,7 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import imageRoutes from './modules/images/images.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
 import taxCategoryRoutes from './modules/shops/taxCategories.routes.js';
+import stockUnitsRoutes from './modules/stockUnits/stockUnits.routes.js';
 
 const app = express();
 
@@ -95,6 +96,7 @@ app.use((req, _res, next) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/shops', shopRoutes);
 app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/stock-units', stockUnitsRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/sales', salesRoutes);
 app.use('/api/v1/payments', paymentRoutes);

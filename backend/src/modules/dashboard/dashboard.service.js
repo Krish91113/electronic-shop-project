@@ -14,16 +14,31 @@ export async function getDashboard(shopId, from, to) {
     toDate.setUTCHours(23, 59, 59, 999);
   }
 
-  // Total completed sales
+  // Total completed sales (ex-GST net sales for tax-inclusive sales, totalAmount for legacy)
   const salesAgg = await prisma.sale.aggregate({
     where: {
       shopId,
       status: 'COMPLETED',
       createdAt: { gte: fromDate, lte: toDate },
     },
-    _sum: { totalAmount: true },
+    _sum: { totalAmount: true, subtotal: true },
     _count: true,
   });
+
+  // Calculate ex-GST net sales: for taxInclusive sales use subtotal; for legacy use totalAmount
+  const netSalesResult = await prisma.$queryRaw`
+    SELECT COALESCE(SUM(
+      CASE
+        WHEN s."taxInclusive" = true THEN s.subtotal
+        ELSE s."totalAmount"
+      END
+    ), 0) as "netSales"
+    FROM "Sale" s
+    WHERE s."shopId" = ${shopId}
+      AND s.status = 'COMPLETED'
+      AND s."createdAt" >= ${fromDate}
+      AND s."createdAt" <= ${toDate}
+  `;
 
   // COGS using cost snapshots
   const cogsResult = await prisma.$queryRaw`
@@ -36,7 +51,7 @@ export async function getDashboard(shopId, from, to) {
       AND s."createdAt" <= ${toDate}
   `;
 
-  const netSales = round2(Number(salesAgg._sum.totalAmount || 0));
+  const netSales = round2(Number(netSalesResult[0]?.netSales || 0));
   const cogs = round2(Number(cogsResult[0]?.cogs || 0));
   const grossProfit = round2(netSales - cogs);
 

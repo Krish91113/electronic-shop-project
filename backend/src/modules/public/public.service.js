@@ -9,11 +9,15 @@ const PUBLIC_PRODUCT_SELECT = {
   slug: true,
   brand: true,
   model: true,
+  variant: true,
+  color: true,
   category: true,
   description: true,
   defaultSellingPrice: true,
   warranty: true,
   isPublished: true,
+  trackSerial: true,
+  modelKey: true,
   images: {
     select: { id: true, url: true, isPrimary: true },
   },
@@ -185,9 +189,42 @@ export async function getPublicProduct(shopSlug, slugOrId) {
   if (!product) throw new NotFoundError('Product not found');
 
   const inStock = product.inventory ? product.inventory.quantity > 0 : false;
+
+  // Find other variants/colors of the same model in this shop
+  let availableVariants = [];
+  if (product.brand && product.model) {
+    const siblingProducts = await prisma.product.findMany({
+      where: {
+        shopId: shop.id,
+        brand: product.brand,
+        model: product.model,
+        isPublished: true,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        slug: true,
+        variant: true,
+        color: true,
+        defaultSellingPrice: true,
+        inventory: { select: { quantity: true } },
+      },
+    });
+
+    availableVariants = siblingProducts.map((sp) => ({
+      id: sp.id,
+      slug: sp.slug,
+      variant: sp.variant,
+      color: sp.color,
+      defaultSellingPrice: sp.defaultSellingPrice,
+      inStock: sp.inventory ? sp.inventory.quantity > 0 : false,
+    }));
+  }
+
   const { inventory, ...rest } = product;
   return {
     ...rest,
     inStock,
+    availableVariants,
   };
 }

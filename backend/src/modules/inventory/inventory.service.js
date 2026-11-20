@@ -1,5 +1,5 @@
 import prisma from '../../config/db.js';
-import { NotFoundError, ConflictError } from '../../utils/errors.js';
+import { NotFoundError, ConflictError, BadRequestError } from '../../utils/errors.js';
 import { round2 } from '../../utils/money.js';
 import { parsePagination, paginationMeta } from '../../utils/helpers.js';
 
@@ -73,6 +73,12 @@ export async function adjustStock(shopId, data, userId) {
     const product = await tx.product.findFirst({ where: { id: productId, shopId } });
     if (!product) throw new NotFoundError('Product not found');
 
+    if (product.trackSerial) {
+      throw new BadRequestError(
+        'Direct quantity adjustment is not allowed for serialized products. Please add, damage, or return specific IMEI units instead.'
+      );
+    }
+
     const inv = await tx.inventory.findUnique({
       where: { shopId_productId: { shopId, productId } },
     });
@@ -125,9 +131,33 @@ export async function listInventory(shopId, query) {
       include: {
         product: {
           select: {
-            id: true, name: true, barcode: true, brand: true,
-            purchaseCost: true, defaultSellingPrice: true,
-            lowStockThreshold: true, images: { take: 1 },
+            id: true,
+            name: true,
+            barcode: true,
+            brand: true,
+            model: true,
+            variant: true,
+            color: true,
+            category: true,
+            trackSerial: true,
+            modelKey: true,
+            purchaseCost: true,
+            defaultSellingPrice: true,
+            lowStockThreshold: true,
+            images: { take: 1 },
+            stockUnits: {
+              select: {
+                id: true,
+                imei1: true,
+                imei2: true,
+                chargerNo: true,
+                purchaseCost: true,
+                sellingPrice: true,
+                status: true,
+                receivedAt: true,
+              },
+              orderBy: { receivedAt: 'desc' },
+            },
           },
         },
       },
@@ -138,7 +168,91 @@ export async function listInventory(shopId, query) {
     prisma.inventory.count({ where }),
   ]);
 
-  return { items, pagination: paginationMeta(total, page, limit) };
+  const enhancedItems = items.map((inv) => {
+    const p = inv.product;
+    const units = p.stockUnits || [];
+    const inStockUnits = units.filter((u) => u.status === 'IN_STOCK');
+    const soldUnits = units.filter((u) => u.status === 'SOLD');
+    const damagedUnits = units.filter((u) => u.status === 'DAMAGED');
+    const returnedUnits = units.filter((u) => u.status === 'RETURNED_TO_SUPPLIER');
+
+    const effectiveQty = p.trackSerial ? inStockUnits.length : inv.quantity;
+    const isLowStock = effectiveQty <= p.lowStockThreshold;
+
+    return {
+      ...inv,
+      quantity: effectiveQty,
+      isLowStock,
+      inStockCount: inStockUnits.length,
+      soldCount: soldUnits.length,
+      damagedCount: damagedUnits.length,
+      returnedCount: returnedUnits.length,
+      units,
+    };
+  });
+
+  return { items: enhancedItems, pagination: paginationMeta(total, page, limit) };
+}
+
+/**
+ * Reconcile Inventory.quantity against actual IN_STOCK StockUnits.
+ * Fixes drift and returns detailed drift report.
+ */
+export async function reconcileInventory(shopId, userId) {
+  return prisma.$transaction(async (tx) => {
+    const serializedProducts = await tx.product.findMany({
+      where: { shopId, trackSerial: true },
+      include: {
+        inventory: true,
+        stockUnits: {
+          where: { status: 'IN_STOCK' },
+          select: { id: true },
+        },
+      },
+    });
+
+    const drifts = [];
+
+    for (const p of serializedProducts) {
+      const actualCount = p.stockUnits.length;
+      const cachedCount = p.inventory?.quantity || 0;
+
+      if (actualCount !== cachedCount) {
+        await tx.inventory.upsert({
+          where: { shopId_productId: { shopId, productId: p.id } },
+          create: { shopId, productId: p.id, quantity: actualCount },
+          update: { quantity: actualCount },
+        });
+
+        drifts.push({
+          productId: p.id,
+          productName: p.name,
+          oldQuantity: cachedCount,
+          newQuantity: actualCount,
+          drift: actualCount - cachedCount,
+        });
+      }
+    }
+
+    if (drifts.length > 0) {
+      await tx.auditLog.create({
+        data: {
+          shopId,
+          userId,
+          action: 'INVENTORY_RECONCILE',
+          entityType: 'Inventory',
+          entityId: shopId,
+          details: { driftsCount: drifts.length, drifts },
+        },
+      });
+    }
+
+    return {
+      totalProductsChecked: serializedProducts.length,
+      driftsFound: drifts.length,
+      drifts,
+    };
+  });
 }
 
 export async function listLowStock(shopId, query) {
