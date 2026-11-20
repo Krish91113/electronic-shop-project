@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { Link, useParams, useNavigate } from "@tanstack/react-router";
 import {
   Package,
@@ -20,14 +20,19 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowDownToLine,
   Store,
   Trash2,
   Camera,
   AlertTriangle,
   X,
+  Hash,
 } from "lucide-react";
 import { BarcodeScanner } from "./barcode-scanner";
+import { StockUnitsManager } from "./stock-units-manager";
+import { ImeiBulkInput } from "./imei-bulk-input";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -48,6 +53,7 @@ import { useAuth } from "@/lib/auth";
 import {
   products as productsApi,
   inventory as inventoryApi,
+  stockUnits as stockUnitsApi,
   taxCategories as taxCategoriesApi,
   images as imagesApi,
   sales as salesApi,
@@ -56,6 +62,7 @@ import {
   shops as shopsApi,
   getErrorMessage,
   type Product as ApiProduct,
+  type StockUnit,
   type InventoryItem,
   type StockMovement,
   type Sale,
@@ -180,10 +187,20 @@ function ProductThumb({ product }: { product: ApiProduct }) {
         </div>
       )}
       <div className="min-w-0">
-        <h3 className="truncate">{product.name}</h3>
-        <small className="text-muted-foreground">
-          {[product.brand, product.model].filter(Boolean).join(" · ")}
-        </small>
+        <h3 className="truncate font-medium">{product.name}</h3>
+        <div className="flex items-center gap-1.5 flex-wrap text-muted-foreground text-xs mt-0.5">
+          <span>{[product.brand, product.model].filter(Boolean).join(" · ") || "—"}</span>
+          {product.variant && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+              {product.variant}
+            </span>
+          )}
+          {product.color && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+              {product.color}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -199,6 +216,7 @@ export function ProductsPage() {
   const [isActiveFilter, setIsActiveFilter] = useState<boolean | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -323,61 +341,148 @@ export function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.products.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <ProductThumb product={p} />
-                      </td>
-                      <td className="mono">{p.barcode ?? "—"}</td>
-                      <td>{fmt(p.purchaseCost)}</td>
-                      <td>{p.defaultSellingPrice != null ? fmt(p.defaultSellingPrice) : "—"}</td>
-                      <td>{p.inventory != null ? `${p.inventory.quantity} units` : "—"}</td>
-                      <td>
-                        <ApiStatusBadge
-                          isActive={p.isActive}
-                          qty={p.inventory?.quantity}
-                          threshold={p.lowStockThreshold}
-                        />
-                      </td>
-                      <td>
-                        <div className="table-actions">
-                          <Button
-                            asChild
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${p.name}`}
-                            title="Edit product"
-                          >
-                            <Link to="/products/$id/edit" params={{ id: p.id }}>
-                              <Pencil size={15} />
-                            </Link>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
-                            title={p.isActive ? "Deactivate product" : "Activate product"}
-                            disabled={toggleMutation.isPending}
-                            onClick={() =>
-                              toggleMutation.mutate({ id: p.id, isActive: !p.isActive })
-                            }
-                          >
-                            <Power size={15} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Delete ${p.name}`}
-                            title="Delete product"
-                            className="text-destructive/80 hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteProductItem(p)}
-                          >
-                            <Trash2 size={15} />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {data.products.map((p) => {
+                    const stockQty = p.trackSerial
+                      ? (p.inStockCount ?? p.inventory?.quantity ?? 0)
+                      : (p.inventory?.quantity ?? 0);
+                    const isExpanded = expandedProductId === p.id;
+                    const priceDisplay =
+                      p.minPrice != null && p.maxPrice != null && p.minPrice !== p.maxPrice
+                        ? `${fmt(p.minPrice)} – ${fmt(p.maxPrice)}`
+                        : p.defaultSellingPrice != null
+                        ? fmt(p.defaultSellingPrice)
+                        : "—";
+
+                    return (
+                      <Fragment key={p.id}>
+                        <tr>
+                          <td>
+                            <ProductThumb product={p} />
+                          </td>
+                          <td>
+                            {p.trackSerial ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+                                  <Boxes size={11} /> IMEI Tracked
+                                </span>
+                                {p.barcode && (
+                                  <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                                    {p.barcode}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="mono">{p.barcode ?? "—"}</span>
+                            )}
+                          </td>
+                          <td>{fmt(p.purchaseCost)}</td>
+                          <td className="font-medium">{priceDisplay}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span>{stockQty} units</span>
+                              {p.trackSerial && (p.stockUnits?.length ?? 0) > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() =>
+                                    setExpandedProductId(isExpanded ? null : p.id)
+                                  }
+                                >
+                                  {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                  <span className="text-[10px] ml-0.5">
+                                    {p.stockUnits?.length} IMEIs
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <ApiStatusBadge
+                              isActive={p.isActive}
+                              qty={stockQty}
+                              threshold={p.lowStockThreshold}
+                            />
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Edit ${p.name}`}
+                                title="Edit product"
+                              >
+                                <Link to="/products/$id/edit" params={{ id: p.id }}>
+                                  <Pencil size={15} />
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`${p.isActive ? "Deactivate" : "Activate"} ${p.name}`}
+                                title={p.isActive ? "Deactivate product" : "Activate product"}
+                                disabled={toggleMutation.isPending}
+                                onClick={() =>
+                                  toggleMutation.mutate({ id: p.id, isActive: !p.isActive })
+                                }
+                              >
+                                <Power size={15} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Delete ${p.name}`}
+                                title="Delete product"
+                                className="text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteProductItem(p)}
+                              >
+                                <Trash2 size={15} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && p.trackSerial && (
+                          <tr className="bg-muted/20">
+                            <td colSpan={7} className="p-3">
+                              <div className="rounded-md border bg-background p-3 text-xs space-y-2">
+                                <div className="flex justify-between items-center font-semibold text-muted-foreground">
+                                  <span>In-Stock IMEIs for {p.name} ({p.stockUnits?.length ?? 0})</span>
+                                  <Link
+                                    to="/products/$id/edit"
+                                    params={{ id: p.id }}
+                                    className="text-emerald-600 hover:underline flex items-center gap-1 font-medium"
+                                  >
+                                    Manage Units &amp; Serial Numbers <ArrowUpRight size={12} />
+                                  </Link>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                  {p.stockUnits?.map((u) => (
+                                    <div
+                                      key={u.id}
+                                      className="p-2 rounded border bg-muted/40 font-mono text-[11px] flex justify-between items-center"
+                                    >
+                                      <div>
+                                        <div className="font-semibold text-foreground">{u.imei1}</div>
+                                        {u.imei2 && (
+                                          <div className="text-muted-foreground text-[10px]">
+                                            {u.imei2}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <span className="font-sans text-muted-foreground font-medium">
+                                        {u.sellingPrice ? fmt(u.sellingPrice) : "Default"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -520,11 +625,33 @@ export function ProductFormPage() {
 
   const [barcode, setBarcode] = useState("");
   const [purchaseCost, setPurchaseCost] = useState(0);
+  const [sellingPrice, setSellingPrice] = useState<number | undefined>(undefined);
   const [isPublished, setIsPublished] = useState(true);
   const [taxCategoryId, setTaxCategoryId] = useState<string>("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Model & Serial fields
+  const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [variant, setVariant] = useState("");
+  const [color, setColor] = useState("");
+  const [hsnCode, setHsnCode] = useState("8517");
+  const [trackSerial, setTrackSerial] = useState(true);
+  const [duplicateError, setDuplicateError] = useState<{
+    message: string;
+    existingProductId?: string;
+  } | null>(null);
+
+  // Model lookup autocomplete for new products
+  const [modelSearch, setModelSearch] = useState("");
+  const { data: modelSearchResults } = useQuery({
+    queryKey: ["model-search", modelSearch],
+    queryFn: () => productsApi.searchModels(modelSearch),
+    enabled: !id && modelSearch.trim().length >= 2,
+  });
 
   // Barcode scanning & validation state
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -577,8 +704,16 @@ export function ProductFormPage() {
   // Populate form when editing
   useEffect(() => {
     if (existing) {
+      setName(existing.name);
       setBarcode(existing.barcode ?? "");
+      setBrand(existing.brand ?? "");
+      setModel(existing.model ?? "");
+      setVariant(existing.variant ?? "");
+      setColor(existing.color ?? "");
+      setHsnCode(existing.hsnCode ?? "8517");
+      setTrackSerial(existing.trackSerial ?? false);
       setPurchaseCost(existing.purchaseCost);
+      setSellingPrice(existing.defaultSellingPrice);
       setIsPublished(existing.isPublished);
       setTaxCategoryId(existing.taxCategoryId ?? "");
       const primaryImg = existing.images?.find((i) => i.isPrimary) ?? existing.images?.[0];
@@ -586,14 +721,24 @@ export function ProductFormPage() {
     }
   }, [existing]);
 
+  // Live tax rate calculation
+  const selectedTaxRate = taxCats?.find((t) => t.id === taxCategoryId)?.rate ?? 0;
+  const baseValue =
+    sellingPrice && sellingPrice > 0
+      ? Number((sellingPrice / (1 + selectedTaxRate / 100)).toFixed(2))
+      : 0;
+  const gstValue =
+    sellingPrice && sellingPrice > 0 ? Number((sellingPrice - baseValue).toFixed(2)) : 0;
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setDuplicateError(null);
     const form = new FormData(e.currentTarget);
     const str = (key: string) => (form.get(key) as string | null) ?? "";
     const num = (key: string) => Number(form.get(key));
 
-    const name = str("name").trim();
-    if (!name) {
+    const finalName = (str("name") || name).trim();
+    if (!finalName) {
       toast.error("Product name is required.");
       return;
     }
@@ -601,11 +746,6 @@ export function ProductFormPage() {
       toast.error("Purchase cost cannot be negative.");
       return;
     }
-    const rawSellingPrice = form.get("defaultSellingPrice") as string | null;
-    const sellingPrice =
-      rawSellingPrice !== null && rawSellingPrice.trim() !== ""
-        ? Number(rawSellingPrice)
-        : undefined;
     if (sellingPrice !== undefined && sellingPrice < 0) {
       toast.error("Selling price cannot be negative.");
       return;
@@ -622,16 +762,20 @@ export function ProductFormPage() {
     const cleanTaxCategoryId = taxCategoryId && taxCategoryId !== "none" ? taxCategoryId : null;
 
     const payload = {
-      name,
+      name: finalName,
       barcode: barcode.trim() ? barcode.trim() : id ? null : undefined,
-      brand: str("brand").trim() ? str("brand").trim() : id ? null : undefined,
-      model: str("model").trim() ? str("model").trim() : id ? null : undefined,
-      category: str("category").trim() ? str("category").trim() : id ? null : undefined,
-      description: str("description").trim() ? str("description").trim() : id ? null : undefined,
+      brand: (str("brand") || brand).trim() || (id ? null : undefined),
+      model: (str("model") || model).trim() || (id ? null : undefined),
+      variant: (str("variant") || variant).trim() || (id ? null : undefined),
+      color: (str("color") || color).trim() || (id ? null : undefined),
+      hsnCode: (str("hsnCode") || hsnCode).trim() || (id ? null : undefined),
+      trackSerial,
+      category: str("category").trim() || (id ? null : undefined),
+      description: str("description").trim() || (id ? null : undefined),
       purchaseCost,
       defaultSellingPrice: sellingPrice !== undefined ? sellingPrice : id ? null : undefined,
       lowStockThreshold: num("lowStockThreshold") || 5,
-      warranty: str("warranty").trim() ? str("warranty").trim() : id ? null : undefined,
+      warranty: str("warranty").trim() || (id ? null : undefined),
       taxCategoryId: cleanTaxCategoryId,
       isPublished,
     };
@@ -670,8 +814,24 @@ export function ProductFormPage() {
         toast.success("Product created successfully.");
       }
       navigate({ to: "/products" });
-    } catch (err) {
-      toast.error(getErrorMessage(err));
+    } catch (err: unknown) {
+      const errResponse = (err as {
+        response?: {
+          status?: number;
+          data?: { code?: string; error?: string; existingProductId?: string };
+        };
+      })?.response;
+      if (errResponse?.data?.code === "DUPLICATE_MODEL" || errResponse?.status === 409) {
+        setDuplicateError({
+          message:
+            errResponse.data.error ||
+            "A product model variant with this brand, model, variant, and color already exists.",
+          existingProductId: errResponse.data.existingProductId,
+        });
+        toast.error("Duplicate model detected! See banner on form.");
+      } else {
+        toast.error(getErrorMessage(err));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -735,6 +895,88 @@ export function ProductFormPage() {
           }
         />
 
+        {/* Duplicate model alert banner */}
+        {duplicateError && (
+          <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 dark:bg-rose-950/30 p-4 text-rose-900 dark:text-rose-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <h4 className="font-semibold text-sm">Duplicate Model Variant Detected</h4>
+                <p className="text-xs">{duplicateError.message}</p>
+                {duplicateError.existingProductId && (
+                  <div className="pt-1">
+                    <Button
+                      asChild
+                      size="sm"
+                      className="bg-rose-700 hover:bg-rose-800 text-white font-medium"
+                    >
+                      <Link to="/products/$id/edit" params={{ id: duplicateError.existingProductId }}>
+                        Go to Existing Model Variant &amp; Add Stock
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Model Autocomplete / Type-ahead (when adding new product) */}
+        {!id && (
+          <div className="panel mb-4 p-4 bg-muted/20">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <Boxes size={14} /> Quick Model Lookup
+            </h3>
+            <p className="text-xs text-muted-foreground mb-2">
+              Search by brand or model (e.g. "Oppo A6x", "Vivo Y28") to avoid creating duplicate models.
+            </p>
+            <div className="relative">
+              <SearchInput
+                value={modelSearch}
+                onChange={setModelSearch}
+                placeholder="Type brand or model name…"
+              />
+              {modelSearchResults && modelSearchResults.length > 0 && (
+                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-background rounded-lg border shadow-lg max-h-56 overflow-y-auto divide-y">
+                  {modelSearchResults.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-2.5 hover:bg-muted/50 cursor-pointer flex justify-between items-center text-xs"
+                      onClick={() => {
+                        setName(m.name);
+                        setBrand(m.brand ?? "");
+                        setModel(m.model ?? "");
+                        setVariant(m.variant ?? "");
+                        setColor(m.color ?? "");
+                        setHsnCode(m.hsnCode ?? "8517");
+                        setTrackSerial(m.trackSerial ?? false);
+                        if (m.defaultSellingPrice) setSellingPrice(m.defaultSellingPrice);
+                        setModelSearch("");
+                        toast.success(`Selected model: ${m.name}`);
+                      }}
+                    >
+                      <div>
+                        <div className="font-semibold">{m.name}</div>
+                        <div className="text-muted-foreground text-[11px]">
+                          {[m.brand, m.model, m.variant, m.color].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-medium text-emerald-600 block">
+                          {m.inStockCount ?? 0} in stock
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {m.defaultSellingPrice ? fmt(m.defaultSellingPrice) : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="panel">
             <div className="panel-body">
@@ -756,7 +998,7 @@ export function ProductFormPage() {
 
                 <div className="form-grid">
                   <div className="form-full">
-                    <Field label="Manufacturer Barcode">
+                    <Field label="Manufacturer Barcode (Optional for Serialized items)">
                       <div className="flex gap-2">
                         <Input
                           name="barcode"
@@ -880,31 +1122,62 @@ export function ProductFormPage() {
 
               {/* Basic details */}
               <section className="form-section">
-                <h2>Basic details</h2>
+                <h2>Model Variant Details</h2>
                 <div className="form-grid">
                   <Field label="Product name *">
                     <Input
                       name="name"
                       required
-                      defaultValue={existing?.name}
-                      placeholder="e.g. Wireless Noise-Cancelling Headphones"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Oppo A6x 4/64 Ice Blue"
                     />
                   </Field>
                   <Field label="Category">
                     <Input
                       name="category"
-                      defaultValue={existing?.category}
-                      placeholder="e.g. Audio & Accessories"
+                      defaultValue={existing?.category ?? "Mobile Phones"}
+                      placeholder="e.g. Mobile Phones, Tablets"
                     />
                   </Field>
                   <Field label="Brand">
-                    <Input name="brand" defaultValue={existing?.brand} placeholder="e.g. Sony" />
+                    <Input
+                      name="brand"
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder="e.g. Oppo, Vivo, Samsung, Realme"
+                    />
                   </Field>
-                  <Field label="Model">
+                  <Field label="Model Name / Code">
                     <Input
                       name="model"
-                      defaultValue={existing?.model}
-                      placeholder="e.g. WH-1000XM5"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="e.g. A6x, CPH2823, Y28"
+                    />
+                  </Field>
+                  <Field label="Variant / Storage">
+                    <Input
+                      name="variant"
+                      value={variant}
+                      onChange={(e) => setVariant(e.target.value)}
+                      placeholder="e.g. 4/64, 6/128, 8/256"
+                    />
+                  </Field>
+                  <Field label="Color">
+                    <Input
+                      name="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      placeholder="e.g. Ice Blue, Midnight Black"
+                    />
+                  </Field>
+                  <Field label="HSN Code (default 8517 for phones)">
+                    <Input
+                      name="hsnCode"
+                      value={hsnCode}
+                      onChange={(e) => setHsnCode(e.target.value)}
+                      placeholder="8517"
                     />
                   </Field>
                   <div className="form-full">
@@ -912,19 +1185,46 @@ export function ProductFormPage() {
                       <Textarea
                         name="description"
                         defaultValue={existing?.description}
-                        rows={3}
-                        placeholder="Brief product description and features…"
+                        rows={2}
+                        placeholder="Model specifications, notes, supplier model code…"
                       />
                     </Field>
                   </div>
+                </div>
+
+                <div className="toggle-field mt-3">
+                  <div>
+                    <h3 className="font-semibold text-sm">Track individual IMEI numbers</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Enable for mobile phones &amp; tablets to track each physical phone unit by IMEI.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={trackSerial}
+                    onCheckedChange={setTrackSerial}
+                    aria-label="Track individual IMEI numbers"
+                  />
                 </div>
               </section>
 
               {/* Pricing & inventory */}
               <section className="form-section">
-                <h2>Pricing &amp; inventory</h2>
+                <h2>Pricing &amp; Tax Details</h2>
                 <div className="form-grid">
-                  <Field label="Purchase cost (₹) *">
+                  <Field label="Default Selling Price (₹ Incl. GST)">
+                    <Input
+                      name="defaultSellingPrice"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={sellingPrice ?? ""}
+                      onChange={(e) =>
+                        setSellingPrice(e.target.value ? Number(e.target.value) : undefined)
+                      }
+                      placeholder="e.g. 8999.00"
+                    />
+                  </Field>
+                  <Field label="Estimated Purchase Cost (₹) *">
                     <Input
                       type="number"
                       min={0}
@@ -932,36 +1232,6 @@ export function ProductFormPage() {
                       value={purchaseCost}
                       onChange={(e) => setPurchaseCost(Number(e.target.value))}
                       required
-                    />
-                  </Field>
-                  <Field label="Default selling price (₹)">
-                    <Input
-                      name="defaultSellingPrice"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      defaultValue={existing?.defaultSellingPrice}
-                      placeholder="Leave blank for auto-rule"
-                    />
-                  </Field>
-                  {!id && (
-                    <Field label="Opening stock (units)">
-                      <Input name="initialStock" type="number" min={0} defaultValue={0} />
-                    </Field>
-                  )}
-                  <Field label="Low-stock threshold">
-                    <Input
-                      name="lowStockThreshold"
-                      type="number"
-                      min={0}
-                      defaultValue={existing?.lowStockThreshold ?? 5}
-                    />
-                  </Field>
-                  <Field label="Warranty">
-                    <Input
-                      name="warranty"
-                      defaultValue={existing?.warranty}
-                      placeholder="e.g. 1 Year Manufacturer Warranty"
                     />
                   </Field>
                   <Field label="GST / Tax category">
@@ -982,11 +1252,50 @@ export function ProductFormPage() {
                       </SelectContent>
                     </Select>
                   </Field>
+                  {!id && !trackSerial && (
+                    <Field label="Opening stock (units)">
+                      <Input name="initialStock" type="number" min={0} defaultValue={0} />
+                    </Field>
+                  )}
+                  <Field label="Low-stock threshold">
+                    <Input
+                      name="lowStockThreshold"
+                      type="number"
+                      min={0}
+                      defaultValue={existing?.lowStockThreshold ?? 5}
+                    />
+                  </Field>
+                  <Field label="Warranty Note">
+                    <Input
+                      name="warranty"
+                      defaultValue={existing?.warranty ?? "1 Year Manufacturer Warranty"}
+                      placeholder="e.g. 1 Year Manufacturer Warranty"
+                    />
+                  </Field>
                 </div>
-                {purchaseCost > 0 && purchaseCost < 1000 && (
-                  <div className="hint">Proposed markup: +₹100 (default rule)</div>
+
+                {/* Live GST Price Breakdown Card */}
+                {sellingPrice != null && sellingPrice > 0 && (
+                  <div className="mt-4 rounded-lg border bg-muted/30 p-3.5 space-y-1.5 text-xs">
+                    <div className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">
+                      Tax Calculation (GST-Inclusive Pricing)
+                    </div>
+                    <div className="flex justify-between items-center text-sm font-bold text-foreground">
+                      <span>Customer Pays (Gross):</span>
+                      <span className="text-emerald-700 dark:text-emerald-400">{fmt(sellingPrice)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Taxable Value (Ex-GST Base):</span>
+                      <span className="font-mono">{fmt(baseValue)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>GST Amount ({selectedTaxRate}%):</span>
+                      <span className="font-mono">{fmt(gstValue)}</span>
+                    </div>
+                  </div>
                 )}
-                <div className="toggle-field">
+
+                <div className="toggle-field mt-3">
                   <div>
                     <h3>Published in catalogue</h3>
                     <p>Show this product on the public storefront.</p>
@@ -1120,6 +1429,26 @@ export function ProductFormPage() {
             </div>
           </div>
         </form>
+
+        {/* Stock Units Manager for Edit mode on serialized products */}
+        {id && existing?.trackSerial && (
+          <div className="mt-8">
+            <section className="panel panel-body">
+              <div className="mb-4">
+                <h2 className="text-base font-bold">IMEI / Serial Numbers Stock</h2>
+                <p className="text-xs text-muted-foreground">
+                  Individual phone units for this model variant. Add, review, mark damaged, or return units.
+                </p>
+              </div>
+              <StockUnitsManager
+                productId={id}
+                productName={existing.name}
+                defaultPurchaseCost={existing.purchaseCost}
+                defaultSellingPrice={existing.defaultSellingPrice}
+              />
+            </section>
+          </div>
+        )}
       </div>
 
       {/* Delete confirmation dialog for Edit mode */}
@@ -1185,6 +1514,23 @@ export function InventoryPage() {
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [adjustDelta, setAdjustDelta] = useState(0);
   const [adjustReason, setAdjustReason] = useState("");
+  const [reconciling, setReconciling] = useState(false);
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      const res = await inventoryApi.reconcile();
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(
+        `Reconciled ${res.reconciledCount} product(s) (${res.discrepanciesFixed} discrepancies fixed).`,
+      );
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const allQuery = useQuery({
     queryKey: ["inventory", "all", page],
@@ -1279,7 +1625,14 @@ export function InventoryPage() {
                           <Package size={16} className="text-muted-foreground" />
                         </div>
                       )}
-                      <span className="truncate">{item.product.name}</span>
+                      <div className="min-w-0">
+                        <span className="truncate block font-medium">{item.product.name}</span>
+                        {item.product.trackSerial && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                            <Boxes size={10} /> IMEI Tracked
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="mono">{item.product.barcode ?? "—"}</td>
@@ -1355,12 +1708,24 @@ export function InventoryPage() {
   return (
     <AppShell title="Inventory">
       <PageHeader title="Inventory" subtitle="Track stock levels across your catalogue.">
-        <Button asChild>
-          <Link to="/inventory/receive">
-            <ArrowDownToLine size={16} />
-            Receive Stock
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReconcile}
+            disabled={reconciling}
+            title="Recalculate cached stock from physical units"
+          >
+            <RefreshCw size={14} className={`mr-1.5 ${reconciling ? "animate-spin" : ""}`} />
+            {reconciling ? "Reconciling…" : "Reconcile Stock"}
+          </Button>
+          <Button asChild>
+            <Link to="/inventory/receive">
+              <ArrowDownToLine size={16} />
+              Receive Stock
+            </Link>
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Metrics */}
@@ -1504,42 +1869,66 @@ export function InventoryPage() {
       >
         <DialogContent>
           <DialogTitle>Adjust stock — {adjustItem?.product.name}</DialogTitle>
-          <DialogDescription>
-            Current quantity: <strong>{adjustItem?.quantity ?? 0}</strong>. Enter a positive or
-            negative delta.
-          </DialogDescription>
-          <Field label="Quantity delta (e.g. +10 or -3)">
-            <Input
-              type="number"
-              value={adjustDelta}
-              onChange={(e) => setAdjustDelta(Number(e.target.value))}
-            />
-          </Field>
-          <Field label="Reason (optional)">
-            <Input
-              value={adjustReason}
-              onChange={(e) => setAdjustReason(e.target.value)}
-              placeholder="e.g. Damage, count correction…"
-            />
-          </Field>
-          <div className="dialog-actions">
-            <Button variant="outline" onClick={() => setAdjustItem(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={adjustDelta === 0 || adjustMutation.isPending}
-              onClick={() => {
-                if (adjustItem)
-                  adjustMutation.mutate({
-                    productId: adjustItem.productId,
-                    delta: adjustDelta,
-                    reason: adjustReason,
-                  });
-              }}
-            >
-              {adjustMutation.isPending ? "Saving…" : "Confirm adjustment"}
-            </Button>
-          </div>
+          {adjustItem?.product.trackSerial ? (
+            <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-900 dark:text-amber-200">
+                <strong>Serialized Model Product:</strong> Direct quantity adjustments are disabled for phone models.
+                Stock count is calculated directly from physical in-stock IMEI units.
+              </div>
+              <p className="text-muted-foreground">
+                To adjust stock for this phone model, manage individual IMEI units (add, delete, mark damaged, or return).
+              </p>
+              <div className="dialog-actions pt-2 flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setAdjustItem(null)}>
+                  Close
+                </Button>
+                <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Link to="/products/$id/edit" params={{ id: adjustItem.productId }}>
+                    Manage Stock Units (IMEIs)
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <DialogDescription>
+                Current quantity: <strong>{adjustItem?.quantity ?? 0}</strong>. Enter a positive or
+                negative delta.
+              </DialogDescription>
+              <Field label="Quantity delta (e.g. +10 or -3)">
+                <Input
+                  type="number"
+                  value={adjustDelta}
+                  onChange={(e) => setAdjustDelta(Number(e.target.value))}
+                />
+              </Field>
+              <Field label="Reason (optional)">
+                <Input
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="e.g. Damage, count correction…"
+                />
+              </Field>
+              <div className="dialog-actions">
+                <Button variant="outline" onClick={() => setAdjustItem(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={adjustDelta === 0 || adjustMutation.isPending}
+                  onClick={() => {
+                    if (adjustItem)
+                      adjustMutation.mutate({
+                        productId: adjustItem.productId,
+                        delta: adjustDelta,
+                        reason: adjustReason,
+                      });
+                  }}
+                >
+                  {adjustMutation.isPending ? "Saving…" : "Confirm adjustment"}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </AppShell>
@@ -1718,43 +2107,69 @@ export function ReceiveStockPage() {
                 </div>
               )}
 
-              <form className="mt-6" onSubmit={handleReceive}>
-                <div className="form-grid">
-                  <Field label="Quantity received *">
-                    <Input
-                      type="number"
-                      min={1}
-                      required
-                      value={qty}
-                      onChange={(e) => setQty(Number(e.target.value))}
-                    />
-                  </Field>
-                  <Field label="Unit purchase cost (₹) *">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      required
-                      value={unitCost}
-                      onChange={(e) => setUnitCost(Number(e.target.value))}
-                    />
-                  </Field>
-                  <Field label="Notes (optional)">
-                    <Input
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="e.g. Supplier name, delivery reference…"
-                    />
-                  </Field>
+              {scannedProduct?.trackSerial ? (
+                <div className="mt-6 border-t pt-4">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-bold text-foreground">
+                      Receive Serialized Phone Units (IMEIs)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      This product model tracks stock by individual IMEI numbers. Enter or scan IMEIs below.
+                    </p>
+                  </div>
+                  <ImeiBulkInput
+                    productId={scannedProduct.id}
+                    productName={scannedProduct.name}
+                    defaultPurchaseCost={scannedProduct.purchaseCost}
+                    defaultSellingPrice={scannedProduct.defaultSellingPrice}
+                    onSuccess={(count) => {
+                      setNewQty((scannedProduct.inventory?.quantity ?? 0) + count);
+                      qc.invalidateQueries({ queryKey: ["inventory"] });
+                      qc.invalidateQueries({ queryKey: ["products"] });
+                      setDone(true);
+                    }}
+                    onCancel={reset}
+                  />
                 </div>
-                <Button
-                  type="submit"
-                  disabled={!scannedProduct || submitting}
-                  className="w-full mt-6"
-                >
-                  {submitting ? "Saving…" : "Confirm receipt"}
-                </Button>
-              </form>
+              ) : (
+                <form className="mt-6" onSubmit={handleReceive}>
+                  <div className="form-grid">
+                    <Field label="Quantity received *">
+                      <Input
+                        type="number"
+                        min={1}
+                        required
+                        value={qty}
+                        onChange={(e) => setQty(Number(e.target.value))}
+                      />
+                    </Field>
+                    <Field label="Unit purchase cost (₹) *">
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        required
+                        value={unitCost}
+                        onChange={(e) => setUnitCost(Number(e.target.value))}
+                      />
+                    </Field>
+                    <Field label="Notes (optional)">
+                      <Input
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="e.g. Supplier name, delivery reference…"
+                      />
+                    </Field>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={!scannedProduct || submitting}
+                    className="w-full mt-6"
+                  >
+                    {submitting ? "Saving…" : "Confirm receipt"}
+                  </Button>
+                </form>
+              )}
             </>
           )}
         </div>
@@ -2425,6 +2840,7 @@ export function SettingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [newTaxName, setNewTaxName] = useState("");
   const [newTaxRate, setNewTaxRate] = useState(0);
+  const [pricesIncludeTax, setPricesIncludeTax] = useState(true);
 
   const {
     data: shop,
@@ -2436,6 +2852,12 @@ export function SettingsPage() {
     queryKey: ["shop", "current"],
     queryFn: () => shopsApi.getCurrent(),
   });
+
+  useEffect(() => {
+    if (shop) {
+      setPricesIncludeTax(shop.pricesIncludeTax ?? true);
+    }
+  }, [shop]);
 
   const { data: taxCats } = useQuery({
     queryKey: ["tax-categories"],
@@ -2468,14 +2890,32 @@ export function SettingsPage() {
     const str = (key: string) => (form.get(key) as string | null)?.trim() ?? "";
     setSubmitting(true);
     try {
+      const brandsRaw = str("brandsServiced");
+      const brandsServiced = brandsRaw
+        ? brandsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
       await shopsApi.updateCurrent({
         name: str("name") || undefined,
         contactPhone: str("contactPhone") || undefined,
+        alternatePhone: str("alternatePhone") || undefined,
         contactEmail: str("contactEmail") || undefined,
         address: str("address") || undefined,
+        state: str("state") || undefined,
+        stateCode: str("stateCode") || undefined,
         gstin: str("gstin") || undefined,
+        bankName: str("bankName") || undefined,
+        bankAccountNo: str("bankAccountNo") || undefined,
+        bankIfsc: str("bankIfsc") || undefined,
+        bankBranch: str("bankBranch") || undefined,
+        upiId: str("upiId") || undefined,
+        tagline: str("tagline") || undefined,
+        warrantyNote: str("warrantyNote") || undefined,
+        brandsServiced,
+        termsAndConditions: str("termsAndConditions") || undefined,
         invoicePrefix: str("invoicePrefix") || undefined,
         invoiceFooter: str("invoiceFooter") || undefined,
+        pricesIncludeTax,
       });
       qc.invalidateQueries({ queryKey: ["shop"] });
       await refreshSession();
@@ -2507,19 +2947,28 @@ export function SettingsPage() {
           <ErrorAlert message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : (
           <form onSubmit={handleSubmit}>
-            <div className="panel panel-body">
+            <div className="panel panel-body space-y-6">
+              {/* Basic & Address */}
               <section className="form-section">
-                <h2>Shop information</h2>
+                <h2>Shop Information &amp; Address</h2>
                 <div className="form-grid">
-                  <Field label="Shop name">
+                  <Field label="Shop name *">
                     <Input name="name" required defaultValue={shop?.name} />
                   </Field>
-                  <Field label="Contact number">
+                  <Field label="Primary Contact Number">
                     <Input
                       name="contactPhone"
                       type="tel"
                       defaultValue={shop?.contactPhone}
-                      placeholder="Shop phone"
+                      placeholder="e.g. 7004114744"
+                    />
+                  </Field>
+                  <Field label="Alternate / WhatsApp Number">
+                    <Input
+                      name="alternatePhone"
+                      type="tel"
+                      defaultValue={shop?.alternatePhone}
+                      placeholder="e.g. 7033389366"
                     />
                   </Field>
                   <Field label="Contact email">
@@ -2527,25 +2976,130 @@ export function SettingsPage() {
                       name="contactEmail"
                       type="email"
                       defaultValue={shop?.contactEmail}
-                      placeholder="Shop email"
+                      placeholder="e.g. shop@example.com"
                     />
                   </Field>
-                  <Field label="Shop address">
-                    <Input name="address" defaultValue={shop?.address} placeholder="Shop address" />
+                  <div className="form-full">
+                    <Field label="Full Address (Akhara Chowk, Bishnugarh, Hazaribagh)">
+                      <Input
+                        name="address"
+                        defaultValue={shop?.address}
+                        placeholder="e.g. Akhara Chowk, Bishnugarh, Hazaribagh, Jharkhand"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="State">
+                    <Input
+                      name="state"
+                      defaultValue={shop?.state ?? "Jharkhand"}
+                      placeholder="Jharkhand"
+                    />
                   </Field>
-                  <Field label="GSTIN">
+                  <Field label="State Code">
+                    <Input
+                      name="stateCode"
+                      defaultValue={shop?.stateCode ?? "20"}
+                      placeholder="20"
+                    />
+                  </Field>
+                  <Field label="Shop GSTIN">
                     <Input
                       name="gstin"
                       defaultValue={shop?.gstin}
-                      placeholder="e.g. 27AAAAA0000A1Z5"
+                      placeholder="e.g. 20EBEPK7095A1Z0"
                     />
                   </Field>
                 </div>
               </section>
 
+              {/* Bank Details */}
               <section className="form-section">
-                <h2>Invoice preferences</h2>
+                <h2>Bank Details (for GST Invoices)</h2>
                 <div className="form-grid">
+                  <Field label="Bank Name">
+                    <Input
+                      name="bankName"
+                      defaultValue={shop?.bankName}
+                      placeholder="e.g. State Bank of India"
+                    />
+                  </Field>
+                  <Field label="Bank Account Number">
+                    <Input
+                      name="bankAccountNo"
+                      defaultValue={shop?.bankAccountNo}
+                      placeholder="Account number"
+                    />
+                  </Field>
+                  <Field label="IFSC Code">
+                    <Input
+                      name="bankIfsc"
+                      defaultValue={shop?.bankIfsc}
+                      placeholder="e.g. SBIN0001234"
+                    />
+                  </Field>
+                  <Field label="Branch Name">
+                    <Input
+                      name="bankBranch"
+                      defaultValue={shop?.bankBranch}
+                      placeholder="e.g. Bishnugarh Branch"
+                    />
+                  </Field>
+                  <Field label="UPI ID / VPA">
+                    <Input
+                      name="upiId"
+                      defaultValue={shop?.upiId}
+                      placeholder="e.g. 7004114744@upi"
+                    />
+                  </Field>
+                </div>
+              </section>
+
+              {/* Invoice & Terms */}
+              <section className="form-section">
+                <h2>Invoice Branding &amp; Terms</h2>
+                <div className="form-grid">
+                  <Field label="Tagline / Header Subtitle">
+                    <Input
+                      name="tagline"
+                      defaultValue={shop?.tagline ?? "Mobile Sale & Service — All Types of Mobile Repairing here"}
+                      placeholder="e.g. Mobile Sale & Service"
+                    />
+                  </Field>
+                  <Field label="Warranty Note">
+                    <Input
+                      name="warrantyNote"
+                      defaultValue={shop?.warrantyNote ?? "All warranty & guaranty by Manufacturer"}
+                      placeholder="Warranty note"
+                    />
+                  </Field>
+                  <div className="form-full">
+                    <Field label="Brands Serviced (comma-separated)">
+                      <Input
+                        name="brandsServiced"
+                        defaultValue={
+                          Array.isArray(shop?.brandsServiced)
+                            ? shop.brandsServiced.join(", ")
+                            : typeof shop?.brandsServiced === "string"
+                            ? shop.brandsServiced
+                            : "NOKIA, SAMSUNG, vivo, oppo, mi, Realme, TECNO"
+                        }
+                        placeholder="NOKIA, SAMSUNG, vivo, oppo, mi, Realme, TECNO"
+                      />
+                    </Field>
+                  </div>
+                  <div className="form-full">
+                    <Field label="Terms &amp; Conditions (Printed on Invoice)">
+                      <Textarea
+                        name="termsAndConditions"
+                        rows={3}
+                        defaultValue={
+                          shop?.termsAndConditions ??
+                          "1. Goods once sold will not be taken back or exchanged.\n2. All warranty & guaranty by manufacturer only.\n3. Subject to Hazaribagh jurisdiction."
+                        }
+                        placeholder="Terms and conditions..."
+                      />
+                    </Field>
+                  </div>
                   <Field label="Invoice prefix">
                     <Input
                       name="invoicePrefix"
@@ -2561,10 +3115,24 @@ export function SettingsPage() {
                     />
                   </Field>
                 </div>
+
+                <div className="toggle-field mt-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">Prices include GST</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Catalogue and billing prices entered by shopkeeper are GST-inclusive.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={pricesIncludeTax}
+                    onCheckedChange={setPricesIncludeTax}
+                    aria-label="Prices include GST"
+                  />
+                </div>
               </section>
             </div>
 
-            <div className="form-actions">
+            <div className="form-actions mt-4">
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Saving…" : "Save changes"}
               </Button>

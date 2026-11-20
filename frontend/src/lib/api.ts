@@ -41,13 +41,26 @@ export interface Shop {
   code: string;
   slug: string;
   contactPhone?: string;
+  alternatePhone?: string;
   contactEmail?: string;
   address?: string;
+  state?: string;
+  stateCode?: string;
   gstin?: string;
   invoicePrefix: string;
   invoiceFooter?: string;
   logoUrl?: string;
   timezone: string;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
+  upiId?: string;
+  termsAndConditions?: string;
+  brandsServiced?: string[];
+  tagline?: string;
+  warrantyNote?: string;
+  pricesIncludeTax?: boolean;
   pricingRule?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -81,6 +94,36 @@ export interface ProductImage {
   createdAt: string;
 }
 
+export interface StockUnit {
+  id: string;
+  shopId: string;
+  productId: string;
+  imei1: string;
+  imei2?: string | null;
+  serialNumber?: string | null;
+  chargerNo?: string | null;
+  purchaseCost: number;
+  sellingPrice?: number | null;
+  status: "IN_STOCK" | "SOLD" | "RETURNED_TO_SUPPLIER" | "DAMAGED" | "RESERVED";
+  receivedAt: string;
+  supplier?: string | null;
+  purchaseRef?: string | null;
+  soldAt?: string | null;
+  saleItemId?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product?: Partial<Product>;
+  saleItem?: {
+    sale?: {
+      id: string;
+      invoiceNumber: string;
+      createdAt?: string;
+      customerName?: string;
+    };
+  };
+}
+
 export interface Product {
   id: string;
   shopId: string;
@@ -89,8 +132,13 @@ export interface Product {
   slug: string;
   brand?: string;
   model?: string;
+  variant?: string;
+  color?: string;
   category?: string;
   description?: string;
+  hsnCode?: string;
+  trackSerial?: boolean;
+  modelKey?: string;
   purchaseCost: number;
   defaultSellingPrice?: number;
   pricingRule?: Record<string, unknown>;
@@ -104,6 +152,12 @@ export interface Product {
   updatedAt: string;
   images: ProductImage[];
   inventory?: { quantity: number };
+  inStockCount?: number;
+  soldCount?: number;
+  minSellingPrice?: number;
+  maxSellingPrice?: number;
+  stockUnits?: StockUnit[];
+  units?: StockUnit[];
 }
 
 export interface InventoryItem {
@@ -144,18 +198,32 @@ export interface SaleItem {
   id: string;
   saleId: string;
   productId: string;
+  stockUnitId?: string | null;
   productNameSnapshot: string;
-  barcodeSnapshot?: string;
+  barcodeSnapshot?: string | null;
+  imeiSnapshot?: string | null;
+  imei2Snapshot?: string | null;
+  chargerNoSnapshot?: string | null;
+  hsnSnapshot?: string | null;
+  variantSnapshot?: string | null;
+  colorSnapshot?: string | null;
   quantity: number;
+  returnedQuantity?: number;
   unitSellingPrice: number;
+  unitBasePrice?: number;
+  taxableValue?: number;
   discountAmount: number;
-  taxCategorySnapshot?: string;
+  taxCategorySnapshot?: string | null;
   taxRateSnapshot: number;
   taxAmount: number;
-  serialNumber?: string;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  serialNumber?: string | null;
   unitCostSnapshot: number;
   lineTotal: number;
-  product?: { warranty?: string };
+  product?: { warranty?: string; category?: string; trackSerial?: boolean };
+  stockUnit?: StockUnit;
 }
 
 export interface Sale {
@@ -168,25 +236,28 @@ export interface Sale {
   taxTotal: number;
   totalAmount: number;
   paymentStatus: string;
-  customerName?: string;
-  customerPhone?: string;
-  notes?: string;
-  createdBy?: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
+  customerGstin?: string | null;
+  customerAadhaar?: string | null;
+  customerState?: string | null;
+  customerStateCode?: string | null;
+  placeOfSupply?: string | null;
+  paymentMode?: string | null;
+  cgstTotal?: number;
+  sgstTotal?: number;
+  igstTotal?: number;
+  amountInWords?: string | null;
+  roundOff?: number;
+  taxInclusive?: boolean;
+  notes?: string | null;
+  createdBy?: string | null;
   createdAt: string;
-  completedAt?: string;
+  completedAt?: string | null;
   items: SaleItem[];
   payments: Payment[];
-  shop?: Pick<
-    Shop,
-    | "name"
-    | "code"
-    | "contactPhone"
-    | "contactEmail"
-    | "address"
-    | "gstin"
-    | "logoUrl"
-    | "invoiceFooter"
-  >;
+  shop?: Shop;
 }
 
 export interface Payment {
@@ -444,7 +515,24 @@ export interface ListProductsParams {
   limit?: number | undefined;
   search?: string | undefined;
   brand?: string | undefined;
+  category?: string | undefined;
   isActive?: boolean | undefined;
+  group?: boolean | string | undefined;
+}
+
+export interface ProductModelSummary {
+  id: string;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  variant?: string | null;
+  color?: string | null;
+  category?: string | null;
+  hsnCode?: string | null;
+  trackSerial?: boolean;
+  defaultSellingPrice?: number | null;
+  inStockCount: number;
+  modelKey?: string | null;
 }
 
 export interface CreateProductData {
@@ -452,8 +540,12 @@ export interface CreateProductData {
   barcode?: string | null | undefined;
   brand?: string | null | undefined;
   model?: string | null | undefined;
+  variant?: string | null | undefined;
+  color?: string | null | undefined;
   category?: string | null | undefined;
   description?: string | null | undefined;
+  hsnCode?: string | null | undefined;
+  trackSerial?: boolean | undefined;
   purchaseCost: number;
   defaultSellingPrice?: number | null | undefined;
   lowStockThreshold?: number | undefined;
@@ -470,8 +562,12 @@ export const products = {
     const { data, pagination } = await requestList<Product>("GET", "/products" + qs(params));
     return { products: data, pagination };
   },
+  searchModels: (params: { q?: string; brand?: string; category?: string } = {}) =>
+    request<ProductModelSummary[]>("GET", "/products/models/search" + qs(params)),
+  getBrands: (q?: string) => request<string[]>("GET", "/products/brands" + qs({ q })),
+  getCategories: (q?: string) => request<string[]>("GET", "/products/categories" + qs({ q })),
   get: (id: string) => request<Product>("GET", `/products/${id}`),
-  scan: (barcode: string) => request<Product>("POST", "/products/scan", { barcode }),
+  scan: (barcode: string) => request<Product & { stockUnit?: StockUnit; isSerialized?: boolean }>("POST", "/products/scan", { barcode }),
   create: (data: CreateProductData) => request<Product>("POST", "/products", data),
   update: (id: string, data: UpdateProductData) =>
     request<Product>("PATCH", `/products/${id}`, data),
@@ -480,6 +576,65 @@ export const products = {
       "DELETE",
       `/products/${id}`,
     ),
+};
+
+// ─── Stock Units ──────────────────────────────────────────────────
+
+export interface ReceiveStockUnitItem {
+  imei1: string;
+  imei2?: string | null | undefined;
+  serialNumber?: string | null | undefined;
+  chargerNo?: string | null | undefined;
+  purchaseCost?: number | undefined;
+  sellingPrice?: number | null | undefined;
+  allowLuhnOverride?: boolean | undefined;
+}
+
+export interface ReceiveStockUnitsData {
+  productId: string;
+  supplier?: string | null | undefined;
+  purchaseRef?: string | null | undefined;
+  purchaseCost: number;
+  sellingPrice?: number | null | undefined;
+  units: ReceiveStockUnitItem[];
+}
+
+export interface StockUnitPreviewResult {
+  valid: (ReceiveStockUnitItem & { index: number })[];
+  duplicatesInBatch: { index: number; imei1: string; imei2?: string; reason: string }[];
+  alreadyInShop: { index: number; imei1: string; imei2?: string; status: string; invoiceNumber?: string; reason: string }[];
+  invalid: { index: number; imei1: string; imei2?: string; reason: string }[];
+  summary: {
+    total: number;
+    validCount: number;
+    duplicateCount: number;
+    alreadyInShopCount: number;
+    invalidCount: number;
+  };
+}
+
+export const stockUnits = {
+  receive: (data: ReceiveStockUnitsData) =>
+    request<{ receivedCount: number; units: StockUnit[] }>("POST", "/stock-units/receive", data),
+  preview: (units: ReceiveStockUnitItem[]) =>
+    request<StockUnitPreviewResult>("POST", "/stock-units/receive/preview", { units }),
+  lookup: (imei: string) => request<StockUnit>("GET", `/stock-units/lookup/${imei}`),
+  list: async (params: { productId?: string; status?: string; q?: string; page?: number; limit?: number } = {}) => {
+    const { data, pagination } = await requestList<StockUnit>("GET", "/stock-units" + qs(params));
+    return { units: data, pagination };
+  },
+  update: (
+    id: string,
+    data: {
+      chargerNo?: string | null | undefined;
+      notes?: string | null | undefined;
+      sellingPrice?: number | null | undefined;
+      supplier?: string | null | undefined;
+      purchaseRef?: string | null | undefined;
+      status?: "IN_STOCK" | "DAMAGED" | "RETURNED_TO_SUPPLIER" | "RESERVED" | undefined;
+    },
+  ) => request<StockUnit>("PATCH", `/stock-units/${id}`, data),
+  delete: (id: string) => request<{ id: string; deleted: boolean }>("DELETE", `/stock-units/${id}`),
 };
 
 // ─── Inventory ────────────────────────────────────────────────────
@@ -524,6 +679,12 @@ export const inventory = {
       "/inventory/adjust",
       data,
     ),
+  reconcile: () =>
+    request<{
+      totalProductsChecked: number;
+      driftsFound: number;
+      drifts: { productId: string; productName: string; oldQuantity: number; newQuantity: number; drift: number }[];
+    }>("POST", "/inventory/reconcile"),
 };
 
 // ─── Sales ────────────────────────────────────────────────────────
@@ -534,15 +695,26 @@ export interface CartItem {
   unitSellingPrice: number;
   discountAmount?: number | undefined;
   serialNumber?: string | undefined;
+  stockUnitIds?: string[] | undefined;
+  imeis?: string[] | undefined;
+  stockUnits?: StockUnit[] | undefined;
+  product?: Product | undefined;
 }
 
 export interface CreateSaleData {
   items: CartItem[];
   paymentMethod: string;
   paymentReference?: string | undefined;
-  customerName?: string | undefined;
-  customerPhone?: string | undefined;
-  notes?: string | undefined;
+  customerName?: string | null | undefined;
+  customerPhone?: string | null | undefined;
+  customerAddress?: string | null | undefined;
+  customerGstin?: string | null | undefined;
+  customerAadhaar?: string | null | undefined;
+  customerState?: string | null | undefined;
+  customerStateCode?: string | null | undefined;
+  placeOfSupply?: string | null | undefined;
+  paymentMode?: string | null | undefined;
+  notes?: string | null | undefined;
 }
 
 export const sales = {
@@ -562,6 +734,8 @@ export const sales = {
       idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     ),
   cancel: (id: string) => request<Sale>("POST", `/sales/${id}/cancel`, {}),
+  returnItems: (id: string, items: { saleItemId: string; stockUnitId?: string; quantity: number; reason?: string }[]) =>
+    request<{ saleId: string; refundAmount: number; status: string }>("POST", `/sales/${id}/return`, { items }),
 };
 
 // ─── Expenses ─────────────────────────────────────────────────────
@@ -599,6 +773,33 @@ export const dashboard = {
 export const reports = {
   profitLoss: (params: { from: string; to: string; timezone?: string }) =>
     request<ProfitLossReport>("GET", "/reports/profit-loss" + qs(params)),
+  stockValuation: () =>
+    request<{
+      serializedValuation: number;
+      serializedUnitsCount: number;
+      nonSerializedValuation: number;
+      nonSerializedQuantity: number;
+      totalValuation: number;
+      totalItemsOnHand: number;
+    }>("GET", "/reports/stock-valuation"),
+  salesByModel: (params: { from?: string; to?: string } = {}) =>
+    request<
+      {
+        productId: string;
+        modelKey: string;
+        name: string;
+        brand?: string;
+        model?: string;
+        variant?: string;
+        color?: string;
+        unitsSold: number;
+        totalQuantity: number;
+        revenue: number;
+        cogs: number;
+        grossProfit: number;
+      }[]
+    >("GET", "/reports/sales-by-model" + qs(params)),
+  imeiHistory: (imei: string) => request<StockUnit & { stockMovements: StockMovement[] }>("GET", `/reports/imei-history/${imei}`),
 };
 
 // ─── Images ───────────────────────────────────────────────────────

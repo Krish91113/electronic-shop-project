@@ -119,6 +119,3 @@ export const listProductsSchema = z.object({
     group: z.string().optional(),
   }),
 });
-    isActive: z.string().optional(),
-  }),
-});
