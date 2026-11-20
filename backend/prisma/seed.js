@@ -10,9 +10,23 @@ const SHOPS_CONFIG = [
     code: process.env.INIT_SHOP1_CODE || 'TC1',
     slug: process.env.INIT_SHOP1_SLUG || 'time-centre-main-road',
     contactPhone: process.env.INIT_SHOP1_PHONE || '7004114744',
+    alternatePhone: '7033389366',
     contactEmail: process.env.INIT_SHOP1_EMAIL || 'owner@electronics.com',
     address: process.env.INIT_SHOP1_ADDRESS || 'Main road Bishnugarh Near by Axis Bank Bishnugarh',
+    gstin: '20EBEPK7095A1Z0',
+    state: 'Jharkhand',
+    stateCode: '20',
     timezone: 'Asia/Kolkata',
+    bankName: 'State Bank of India',
+    bankAccountNo: '39482019482',
+    bankIfsc: 'SBIN0001234',
+    bankBranch: 'Bishnugarh',
+    upiId: '7004114744@upi',
+    brandsServiced: ['NOKIA', 'SAMSUNG', 'vivo', 'oppo', 'mi', 'Realme', 'TECNO'],
+    tagline: 'Mobile Sale & Service — All Types of Mobile Repairing here',
+    warrantyNote: 'All warranty & guaranty by Manufacturer',
+    termsAndConditions: '1. Goods once sold will not be taken back.\n2. Warranty and guaranty provided directly by the respective manufacturer service centres.\n3. Please bring this invoice for any service or repair claims.\n4. Subject to Hazaribagh jurisdiction only.',
+    pricesIncludeTax: true,
     pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
   },
   {
@@ -20,9 +34,23 @@ const SHOPS_CONFIG = [
     code: process.env.INIT_SHOP2_CODE || 'TC2',
     slug: process.env.INIT_SHOP2_SLUG || 'time-centre-akhara-chowk',
     contactPhone: process.env.INIT_SHOP2_PHONE || '7004114744',
+    alternatePhone: '7033389366',
     contactEmail: process.env.INIT_SHOP2_EMAIL || 'owner2@electronics.com',
-    address: process.env.INIT_SHOP2_ADDRESS || 'Akhara Chowck Bishnugarh',
+    address: process.env.INIT_SHOP2_ADDRESS || 'Akhara Chowk Bishnugarh (Hazaribagh), Jharkhand',
+    gstin: '20EBEPK7095A1Z0',
+    state: 'Jharkhand',
+    stateCode: '20',
     timezone: 'Asia/Kolkata',
+    bankName: 'State Bank of India',
+    bankAccountNo: '39482019482',
+    bankIfsc: 'SBIN0001234',
+    bankBranch: 'Bishnugarh',
+    upiId: '7004114744@upi',
+    brandsServiced: ['NOKIA', 'SAMSUNG', 'vivo', 'oppo', 'mi', 'Realme', 'TECNO'],
+    tagline: 'Mobile Sale & Service — All Types of Mobile Repairing here',
+    warrantyNote: 'All warranty & guaranty by Manufacturer',
+    termsAndConditions: '1. Goods once sold will not be taken back.\n2. Warranty and guaranty provided directly by the respective manufacturer service centres.\n3. Please bring this invoice for any service or repair claims.\n4. Subject to Hazaribagh jurisdiction only.',
+    pricesIncludeTax: true,
     pricingRule: { threshold: 1000, addend: 100, multiplier: 1.10 },
   },
 ];
@@ -63,6 +91,7 @@ async function seed() {
   await prisma.idempotencyKey.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.saleItem.deleteMany();
+  await prisma.stockUnit.deleteMany();
   await prisma.sale.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.inventory.deleteMany();
@@ -234,6 +263,27 @@ async function seed() {
   // Sample products for Shop 2
   const products2 = [
     {
+      name: 'Oppo A6x 4/64 Ice Blue',
+      barcode: null,
+      brand: 'Oppo',
+      model: 'A6x',
+      variant: '4/64',
+      color: 'Ice Blue',
+      category: 'Mobile Phones',
+      hsnCode: '8517',
+      trackSerial: true,
+      modelKey: 'oppo|a6x|4/64|ice blue',
+      purchaseCost: 16500,
+      defaultSellingPrice: 19999,
+      taxCategoryId: gst18_s2.id,
+      initialStock: 2,
+      warranty: '1 Year Brand Warranty',
+      units: [
+        { imei1: '865796081696319', purchaseCost: 16500 },
+        { imei1: '865796081668730', purchaseCost: 16500 },
+      ],
+    },
+    {
       name: 'Braided HDMI Cable 4K 2m',
       barcode: 'HDMI001',
       brand: 'Belkin',
@@ -269,7 +319,12 @@ async function seed() {
         slug,
         brand: p.brand,
         model: p.model,
+        variant: p.variant || null,
+        color: p.color || null,
         category: p.category,
+        hsnCode: p.hsnCode || null,
+        trackSerial: Boolean(p.trackSerial),
+        modelKey: p.modelKey || null,
         purchaseCost: p.purchaseCost,
         defaultSellingPrice: p.defaultSellingPrice,
         taxCategoryId: p.taxCategoryId,
@@ -279,7 +334,31 @@ async function seed() {
     await prisma.inventory.create({
       data: { shopId: shop2.id, productId: product.id, quantity: p.initialStock },
     });
-    if (p.initialStock > 0) {
+    if (p.units && p.units.length > 0) {
+      for (const u of p.units) {
+        const unit = await prisma.stockUnit.create({
+          data: {
+            shopId: shop2.id,
+            productId: product.id,
+            imei1: u.imei1,
+            purchaseCost: u.purchaseCost,
+            status: 'IN_STOCK',
+          },
+        });
+        await prisma.stockMovement.create({
+          data: {
+            shopId: shop2.id,
+            productId: product.id,
+            stockUnitId: unit.id,
+            movementType: 'OPENING',
+            quantityDelta: 1,
+            unitCost: u.purchaseCost,
+            notes: 'Seed opening stock unit',
+            createdBy: owner2.id,
+          },
+        });
+      }
+    } else if (p.initialStock > 0) {
       await prisma.stockMovement.create({
         data: {
           shopId: shop2.id,

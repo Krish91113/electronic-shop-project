@@ -13,19 +13,33 @@ model Shop {
   code             String            @unique
   slug             String            @unique
   contactPhone     String?
+  alternatePhone   String?
   contactEmail     String?
   address          String?
+  state            String?           @default("Jharkhand")
+  stateCode        String?           @default("20")
   gstin            String?
   invoicePrefix    String            @default("INV")
   invoiceFooter    String?
   logoUrl          String?
   timezone         String            @default("Asia/Kolkata")
   pricingRule      Json?
+  bankName         String?
+  bankAccountNo    String?
+  bankIfsc         String?
+  bankBranch       String?
+  upiId            String?
+  termsAndConditions String?
+  brandsServiced   Json?
+  tagline          String?           @default("Mobile Sale & Service — All Types of Mobile Repairing here")
+  warrantyNote     String?           @default("All warranty & guaranty by Manufacturer")
+  pricesIncludeTax Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   memberships      ShopMembership[]
   products         Product[]
+  stockUnits       StockUnit[]
   inventories      Inventory[]
   stockMovements   StockMovement[]
   sales            Sale[]
@@ -96,8 +110,13 @@ model Product {
   slug                String
   brand               String?
   model               String?
+  variant             String?
+  color               String?
   category            String?
   description         String?
+  hsnCode             String?         @default("8517")
+  trackSerial         Boolean         @default(false)
+  modelKey            String?
   purchaseCost        Decimal         @db.Decimal(12, 2)
   defaultSellingPrice Decimal?        @db.Decimal(12, 2)
   pricingRule         Json?
@@ -113,14 +132,46 @@ model Product {
   taxCategory         TaxCategory?    @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
   inventory           Inventory?
   stockMovements      StockMovement[]
+  stockUnits          StockUnit[]
   saleItems           SaleItem[]
   images              ProductImage[]
 
   @@unique([shopId, barcode])
   @@unique([shopId, slug])
+  @@unique([shopId, modelKey])
   @@index([shopId])
   @@index([barcode])
   @@index([name])
+}
+
+model StockUnit {
+  id            String          @id @default(uuid())
+  shopId        String
+  productId     String
+  imei1         String
+  imei2         String?
+  serialNumber  String?
+  chargerNo     String?
+  purchaseCost  Decimal         @db.Decimal(12, 2)
+  sellingPrice  Decimal?        @db.Decimal(12, 2)
+  status        String          @default("IN_STOCK") // IN_STOCK | SOLD | RETURNED_TO_SUPPLIER | DAMAGED | RESERVED
+  receivedAt    DateTime        @default(now())
+  supplier      String?
+  purchaseRef   String?
+  soldAt        DateTime?
+  saleItemId    String?         @unique
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  shop          Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  saleItem      SaleItem?       @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  stockMovements StockMovement[]
+
+  @@unique([shopId, imei1])
+  @@index([shopId, productId, status])
+  @@index([imei2])
 }
 
 model ProductImage {
@@ -151,23 +202,26 @@ model Inventory {
 }
 
 model StockMovement {
-  id            String   @id @default(uuid())
+  id            String     @id @default(uuid())
   shopId        String
   productId     String
+  stockUnitId   String?
   movementType  String
   quantityDelta Int
-  unitCost      Decimal  @db.Decimal(12, 2)
+  unitCost      Decimal    @db.Decimal(12, 2)
   referenceType String?
   referenceId   String?
   notes         String?
   createdBy     String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime   @default(now())
 
-  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shop          Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockUnit     StockUnit? @relation(fields: [stockUnitId], references: [id], onDelete: SetNull)
 
   @@index([shopId])
   @@index([productId])
+  @@index([stockUnitId])
   @@index([movementType])
   @@index([createdAt])
 }
@@ -185,25 +239,38 @@ model InvoiceSequence {
 }
 
 model Sale {
-  id            String     @id @default(uuid())
-  shopId        String
-  invoiceNumber String     @unique
-  status        String     @default("COMPLETED")
-  subtotal      Decimal    @db.Decimal(12, 2)
-  discountTotal Decimal    @db.Decimal(12, 2) @default(0)
-  taxTotal      Decimal    @db.Decimal(12, 2) @default(0)
-  totalAmount   Decimal    @db.Decimal(12, 2)
-  paymentStatus String     @default("PAID")
-  customerName  String?
-  customerPhone String?
-  notes         String?
-  createdBy     String?
-  createdAt     DateTime   @default(now())
-  completedAt   DateTime?
+  id                String     @id @default(uuid())
+  shopId            String
+  invoiceNumber     String     @unique
+  status            String     @default("COMPLETED")
+  subtotal          Decimal    @db.Decimal(12, 2)
+  discountTotal     Decimal    @db.Decimal(12, 2) @default(0)
+  taxTotal          Decimal    @db.Decimal(12, 2) @default(0)
+  totalAmount       Decimal    @db.Decimal(12, 2)
+  paymentStatus     String     @default("PAID")
+  customerName      String?
+  customerPhone     String?
+  customerAddress   String?
+  customerGstin     String?
+  customerAadhaar   String?
+  customerState     String?
+  customerStateCode String?
+  placeOfSupply     String?
+  paymentMode       String?
+  cgstTotal         Decimal    @db.Decimal(12, 2) @default(0)
+  sgstTotal         Decimal    @db.Decimal(12, 2) @default(0)
+  igstTotal         Decimal    @db.Decimal(12, 2) @default(0)
+  amountInWords     String?
+  roundOff          Decimal    @db.Decimal(12, 2) @default(0)
+  taxInclusive      Boolean    @default(false)
+  notes             String?
+  createdBy         String?
+  createdAt         DateTime   @default(now())
+  completedAt       DateTime?
 
-  shop          Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  items         SaleItem[]
-  payments      Payment[]
+  shop              Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  items             SaleItem[]
+  payments          Payment[]
 
   @@index([shopId])
   @@index([createdAt])
@@ -211,26 +278,41 @@ model Sale {
 }
 
 model SaleItem {
-  id                  String   @id @default(uuid())
+  id                  String     @id @default(uuid())
   saleId              String
   productId           String
+  stockUnitId         String?
   productNameSnapshot String
   barcodeSnapshot     String?
+  imeiSnapshot        String?
+  imei2Snapshot       String?
+  chargerNoSnapshot   String?
+  hsnSnapshot         String?
+  variantSnapshot     String?
+  colorSnapshot       String?
   quantity            Int
-  unitSellingPrice    Decimal  @db.Decimal(12, 2)
-  discountAmount      Decimal  @db.Decimal(12, 2) @default(0)
+  returnedQuantity    Int        @default(0)
+  unitSellingPrice    Decimal    @db.Decimal(12, 2)
+  unitBasePrice       Decimal?   @db.Decimal(12, 2)
+  taxableValue        Decimal?   @db.Decimal(12, 2)
+  discountAmount      Decimal    @db.Decimal(12, 2) @default(0)
   taxCategorySnapshot String?
-  taxRateSnapshot     Decimal  @db.Decimal(5, 2) @default(0)
-  taxAmount           Decimal  @db.Decimal(12, 2) @default(0)
+  taxRateSnapshot     Decimal    @db.Decimal(5, 2) @default(0)
+  taxAmount           Decimal    @db.Decimal(12, 2) @default(0)
+  cgstAmount          Decimal?   @db.Decimal(12, 2)
+  sgstAmount          Decimal?   @db.Decimal(12, 2)
+  igstAmount          Decimal?   @db.Decimal(12, 2)
   serialNumber        String?
-  unitCostSnapshot    Decimal  @db.Decimal(12, 2)
-  lineTotal           Decimal  @db.Decimal(12, 2)
+  unitCostSnapshot    Decimal    @db.Decimal(12, 2)
+  lineTotal           Decimal    @db.Decimal(12, 2)
 
-  sale                Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product             Product  @relation(fields: [productId], references: [id])
+  sale                Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product             Product    @relation(fields: [productId], references: [id])
+  stockUnit           StockUnit?
 
   @@index([saleId])
   @@index([productId])
+  @@index([stockUnitId])
 }
 
 model Payment {

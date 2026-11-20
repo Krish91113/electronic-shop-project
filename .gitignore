@@ -11,6 +11,7 @@ frontend/.env
 !*.env.example
 
 # Build outputs
+.vite/
 dist/
 build/
 .output/
