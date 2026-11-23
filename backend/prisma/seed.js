@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const SHOPS_CONFIG = [
   {
     name: process.env.INIT_SHOP1_NAME || 'Time Centre - Main Road',
-    code: process.env.INIT_SHOP1_CODE || 'TC1',
+    code: process.env.INIT_SHOP1_CODE || 'TC1',  
     slug: process.env.INIT_SHOP1_SLUG || 'time-centre-main-road',
     contactPhone: process.env.INIT_SHOP1_PHONE || '7004114744',
     alternatePhone: '7033389366',

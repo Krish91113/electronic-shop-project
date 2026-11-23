@@ -71,7 +71,7 @@ export interface User {
   email: string;
   name?: string;
   role: string;
-  shops: Pick<Shop, "id" | "name" | "slug" | "code">[];
+  shops: Pick<Shop, "id" | "name" | "slug" | "code" | "stateCode">[];
   token?: string;
 }
 
@@ -154,10 +154,13 @@ export interface Product {
   inventory?: { quantity: number };
   inStockCount?: number;
   soldCount?: number;
+  minPrice?: number;
+  maxPrice?: number;
   minSellingPrice?: number;
   maxSellingPrice?: number;
   stockUnits?: StockUnit[];
   units?: StockUnit[];
+  scannedUnit?: StockUnit;
 }
 
 export interface InventoryItem {
@@ -176,6 +179,7 @@ export interface InventoryItem {
     | "purchaseCost"
     | "defaultSellingPrice"
     | "images"
+    | "trackSerial"
   >;
 }
 
@@ -222,8 +226,20 @@ export interface SaleItem {
   serialNumber?: string | null;
   unitCostSnapshot: number;
   lineTotal: number;
-  product?: { warranty?: string; category?: string; trackSerial?: boolean };
+  product?: {
+    warranty?: string;
+    category?: string;
+    trackSerial?: boolean;
+    hsnCode?: string;
+    taxCategory?: TaxCategory;
+  };
   stockUnit?: StockUnit;
+  hsnCode?: string | null;
+  lineBase?: number;
+  lineTax?: number;
+  imei?: string | null;
+  imei2?: string | null;
+  chargerNo?: string | null;
 }
 
 export interface Sale {
@@ -476,17 +492,9 @@ export const auth = {
 // ─── Shops ────────────────────────────────────────────────────────
 
 export type ShopUpdate = {
-  [
-    K in
-      | "name"
-      | "contactPhone"
-      | "contactEmail"
-      | "address"
-      | "gstin"
-      | "invoicePrefix"
-      | "invoiceFooter"
-      | "logoUrl"
-  ]?: string | undefined;
+  [K in keyof Omit<Shop, "id" | "code" | "slug" | "createdAt" | "updatedAt">]?:
+    | Shop[K]
+    | undefined;
 };
 
 export const shops = {
@@ -562,8 +570,10 @@ export const products = {
     const { data, pagination } = await requestList<Product>("GET", "/products" + qs(params));
     return { products: data, pagination };
   },
-  searchModels: (params: { q?: string; brand?: string; category?: string } = {}) =>
-    request<ProductModelSummary[]>("GET", "/products/models/search" + qs(params)),
+  searchModels: (params: string | { q?: string; brand?: string; category?: string } = {}) => {
+    const p = typeof params === "string" ? { q: params } : params;
+    return request<ProductModelSummary[]>("GET", "/products/models/search" + qs(p));
+  },
   getBrands: (q?: string) => request<string[]>("GET", "/products/brands" + qs({ q })),
   getCategories: (q?: string) => request<string[]>("GET", "/products/categories" + qs({ q })),
   get: (id: string) => request<Product>("GET", `/products/${id}`),
@@ -619,8 +629,25 @@ export const stockUnits = {
   preview: (units: ReceiveStockUnitItem[]) =>
     request<StockUnitPreviewResult>("POST", "/stock-units/receive/preview", { units }),
   lookup: (imei: string) => request<StockUnit>("GET", `/stock-units/lookup/${imei}`),
-  list: async (params: { productId?: string; status?: string; q?: string; page?: number; limit?: number } = {}) => {
-    const { data, pagination } = await requestList<StockUnit>("GET", "/stock-units" + qs(params));
+  list: async (
+    params: {
+      productId?: string | undefined;
+      status?: string | undefined;
+      q?: string | undefined;
+      search?: string | undefined;
+      page?: number | undefined;
+      limit?: number | undefined;
+    } = {},
+  ) => {
+    const cleanParams = { ...params };
+    if (cleanParams.search && !cleanParams.q) {
+      cleanParams.q = cleanParams.search;
+      delete cleanParams.search;
+    }
+    const { data, pagination } = await requestList<StockUnit>(
+      "GET",
+      "/stock-units" + qs(cleanParams),
+    );
     return { units: data, pagination };
   },
   update: (
@@ -634,7 +661,13 @@ export const stockUnits = {
       status?: "IN_STOCK" | "DAMAGED" | "RETURNED_TO_SUPPLIER" | "RESERVED" | undefined;
     },
   ) => request<StockUnit>("PATCH", `/stock-units/${id}`, data),
-  delete: (id: string) => request<{ id: string; deleted: boolean }>("DELETE", `/stock-units/${id}`),
+  updateStatus: (
+    id: string,
+    status: "IN_STOCK" | "DAMAGED" | "RETURNED_TO_SUPPLIER" | "RESERVED",
+    notes?: string,
+  ) => stockUnits.update(id, { status, notes }),
+  delete: (id: string) =>
+    request<{ id: string; deleted: boolean }>("DELETE", `/stock-units/${id}`),
 };
 
 // ─── Inventory ────────────────────────────────────────────────────
@@ -683,6 +716,8 @@ export const inventory = {
     request<{
       totalProductsChecked: number;
       driftsFound: number;
+      reconciledCount?: number;
+      discrepanciesFixed?: number;
       drifts: { productId: string; productName: string; oldQuantity: number; newQuantity: number; drift: number }[];
     }>("POST", "/inventory/reconcile"),
 };

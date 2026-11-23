@@ -297,3 +297,4 @@ if (process.argv[1]?.endsWith('merge-products-into-models.js')) {
     })
     .finally(() => prisma.$disconnect());
 }
+

@@ -103,3 +103,4 @@ if (process.argv[1]?.endsWith('mask-pii.js')) {
     })
     .finally(() => prisma.$disconnect());
 }
+

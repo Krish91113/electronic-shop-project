@@ -53,7 +53,12 @@ export function errorHandler(err, req, res, _next) {
   }
 
   logger.error({ err, reqId: req.id }, 'Unhandled error');
+  const isDev = process.env.NODE_ENV !== 'production';
   return res.status(500).json({
-    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: isDev ? err.message : 'An unexpected error occurred',
+      details: isDev ? err.stack : undefined,
+    },
   });
 }

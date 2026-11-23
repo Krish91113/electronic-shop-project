@@ -445,3 +445,4 @@ export async function deleteStockUnit(shopId, unitId, userId) {
     return { id: unitId, deleted: true };
   });
 }
+

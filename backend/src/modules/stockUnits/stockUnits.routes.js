@@ -21,3 +21,4 @@ router.patch('/:id', validate(updateStockUnitSchema), ctrl.update);
 router.delete('/:id', ctrl.remove);
 
 export default router;
+

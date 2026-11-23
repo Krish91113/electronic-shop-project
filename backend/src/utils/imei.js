@@ -55,6 +55,9 @@ export function validateImei(imei, { strict = true, allowLuhnOverride = false } 
   }
 
   if (cleaned.length !== 15) {
+    if (allowLuhnOverride && cleaned.length >= 6 && cleaned.length <= 20) {
+      return { valid: true, cleaned, warning: `Non-standard length (${cleaned.length} digits)` };
+    }
     return {
       valid: false,
       cleaned,
@@ -175,3 +178,4 @@ export function previewImeiBatch(units, existingImeiMap = new Map(), options = {
     },
   };
 }
+

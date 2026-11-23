@@ -21,8 +21,8 @@ const saleItemSchema = z.object({
 });
 
 const paymentMethodSchema = z.preprocess(
-  (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
-  z.enum(['CASH', 'UPI', 'CARD', 'OTHER'])
+  (v) => (typeof v === 'string' ? v.trim() : v),
+  z.string().min(1, 'Payment method is required')
 );
 
 export const createSaleSchema = z.object({

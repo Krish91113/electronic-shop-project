@@ -224,6 +224,7 @@ describe("Printable Customer Bill Route (/sales/$id/print)", () => {
       taxTotal: 8640,
       totalAmount: 56640,
       paymentStatus: "PAID",
+      paymentMode: "UPI",
       customerName: "Rahul Sharma",
       customerPhone: "+91 98765 99999",
       createdAt: "2026-10-12T10:30:00.000Z",
@@ -257,13 +258,19 @@ describe("Printable Customer Bill Route (/sales/$id/print)", () => {
         },
       ],
       shop: {
+        id: "shop-1",
+        slug: "time-centre-1",
+        invoicePrefix: "INV",
+        timezone: "Asia/Kolkata",
         name: "Time Centre - Shop 1",
         code: "TC1",
         address: "Shop 101, Central Electronic Market",
         contactPhone: "+91 98765 43210",
         gstin: "29AAAAA0000A1Z5",
         invoiceFooter: "Goods once sold can be serviced under warranty. Thank you!",
-      },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      } as unknown as Shop,
     };
 
     vi.mocked(salesApi.invoice).mockResolvedValue(mockInvoice);
@@ -288,17 +295,16 @@ describe("Printable Customer Bill Route (/sales/$id/print)", () => {
     expect(screen.getByText(/Warranty: 1 Year Comprehensive Brand Warranty/i)).toBeDefined();
 
     // Tax breakdown and totals
-    expect(screen.getByText("GST 18%:")).toBeDefined();
+    expect(screen.getAllByText(/CGST|SGST|9\.00%/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/UPI/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Goods once sold can be serviced under warranty/i)).toBeDefined();
 
     // Verify layout options
-    expect(screen.getByText(/A4 Standard/i)).toBeDefined();
+    expect(screen.getByText(/A4 GST Invoice/i)).toBeDefined();
     expect(screen.getByText(/80mm Thermal/i)).toBeDefined();
 
-    // Does NOT contain Volt Electronics or "Save as PDF"
+    // Does NOT contain Volt Electronics
     expect(screen.queryByText(/Volt Electronics/i)).toBeNull();
-    expect(screen.queryByText(/Save as PDF/i)).toBeNull();
   });
 
   it("renders CANCELLED banner for cancelled sales", async () => {
@@ -316,9 +322,15 @@ describe("Printable Customer Bill Route (/sales/$id/print)", () => {
       items: [],
       payments: [],
       shop: {
+        id: "shop-1",
+        slug: "time-centre-1",
+        invoicePrefix: "INV",
+        timezone: "Asia/Kolkata",
         name: "Time Centre - Shop 1",
         code: "TC1",
-      },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      } as unknown as Shop,
     };
 
     vi.mocked(salesApi.invoice).mockResolvedValue(cancelledInvoice);

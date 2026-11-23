@@ -109,3 +109,4 @@ ALTER TABLE "StockUnit" ADD CONSTRAINT "StockUnit_saleItemId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_stockUnitId_fkey" FOREIGN KEY ("stockUnitId") REFERENCES "StockUnit"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+

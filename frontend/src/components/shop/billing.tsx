@@ -39,11 +39,11 @@ export type CartLine = {
   product: Product;
   qty: number;
   unitPrice: number; // inclusive selling price
-  stockUnit?: StockUnit;
-  imei?: string;
-  imei2?: string;
-  chargerNo?: string;
-  serialNumber?: string;
+  stockUnit?: StockUnit | undefined;
+  imei?: string | undefined;
+  imei2?: string | undefined;
+  chargerNo?: string | undefined;
+  serialNumber?: string | undefined;
 };
 
 const money = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
@@ -98,7 +98,8 @@ export function BillingPage() {
 
   // Cart state
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card" | "Credit" | "Bank Transfer">("Cash");
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+  const [paymentRef, setPaymentRef] = useState("");
   const [mobileTab, setMobileTab] = useState<"catalog" | "cart">("catalog");
 
   // Customer state
@@ -220,7 +221,9 @@ export function BillingPage() {
         return false;
       }
 
-      const price = Number(unit.sellingPrice ?? product.defaultSellingPrice ?? product.purchaseCost ?? 0);
+      const price = Number(
+        unit.sellingPrice ?? product.defaultSellingPrice ?? product.purchaseCost ?? 0,
+      );
       setCart((prev) => [
         ...prev,
         {
@@ -273,9 +276,7 @@ export function BillingPage() {
             canAdd = false;
             return prev;
           }
-          return prev.map((l) =>
-            l.lineId === exists.lineId ? { ...l, qty: l.qty + 1 } : l,
-          );
+          return prev.map((l) => (l.lineId === exists.lineId ? { ...l, qty: l.qty + 1 } : l));
         }
         return [
           ...prev,
@@ -378,6 +379,7 @@ export function BillingPage() {
         };
       }),
       paymentMethod,
+      paymentReference: paymentRef.trim() || undefined,
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       customerAddress: customerAddress.trim() || undefined,
@@ -387,6 +389,31 @@ export function BillingPage() {
       customerStateCode: customerStateCode.trim() || "20",
       placeOfSupply: placeOfSupply.trim() || customerState.trim() || "Jharkhand",
       paymentMode: paymentMethod,
+      notes:
+        [
+          [
+            "Bajaj Finserv",
+            "DMI Finance",
+            "Home Credit",
+            "TVS Credit",
+            "Chola",
+            "IDFC FIRST Bank",
+          ].includes(paymentMethod)
+            ? `Finance: ${paymentMethod}${paymentRef ? ` (Ref: ${paymentRef.trim()})` : ""}`
+            : null,
+          [
+            "Bajaj Finserv",
+            "DMI Finance",
+            "Home Credit",
+            "TVS Credit",
+            "Chola",
+            "IDFC FIRST Bank",
+          ].includes(paymentMethod)
+            ? "Emi कटने के तारीख से 3 दिन पहले A/c में पैसा डाल के रखना अनिवार्य है"
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
     };
 
     saleMutation.mutate({ payload, key });
@@ -403,6 +430,7 @@ export function BillingPage() {
     setCustomerGstin("");
     setCustomerAadhaar("");
     setPaymentMethod("Cash");
+    setPaymentRef("");
     setMobileTab("catalog");
   };
 
@@ -552,8 +580,8 @@ export function BillingPage() {
               <div className="pos-product-grid">
                 {searchResults.map((p) => {
                   const qty = p.trackSerial
-                    ? p.inStockCount ?? p.inventory?.quantity ?? 0
-                    : p.inventory?.quantity ?? 0;
+                    ? (p.inStockCount ?? p.inventory?.quantity ?? 0)
+                    : (p.inventory?.quantity ?? 0);
                   const primaryImage = p.images.find((i) => i.isPrimary)?.url ?? p.images[0]?.url;
 
                   return (
@@ -818,7 +846,9 @@ export function BillingPage() {
                 <Input
                   placeholder="Aadhaar Last 4 Digits (optional)"
                   value={customerAadhaar}
-                  onChange={(e) => setCustomerAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  onChange={(e) =>
+                    setCustomerAadhaar(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
                   className="h-8 text-xs font-mono"
                   maxLength={4}
                 />
@@ -889,19 +919,86 @@ export function BillingPage() {
               <h3 className="text-xs pt-3 font-semibold text-muted-foreground uppercase tracking-wider">
                 Payment Method
               </h3>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {(["Cash", "UPI", "Card", "Credit", "Bank Transfer"] as const).map((m) => (
-                  <Button
-                    key={m}
-                    type="button"
-                    variant={paymentMethod === m ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 text-xs px-2.5"
-                    onClick={() => setPaymentMethod(m)}
-                  >
-                    {m}
-                  </Button>
-                ))}
+              <div className="space-y-2 pt-1">
+                <div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    Regular Payment Modes:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["Cash", "UPI", "Card", "Bank Transfer"] as const).map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        variant={paymentMethod === m ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs px-2.5"
+                        onClick={() => setPaymentMethod(m)}
+                      >
+                        {m}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    EMI / Finance Providers:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        "Bajaj Finserv",
+                        "DMI Finance",
+                        "Home Credit",
+                        "TVS Credit",
+                        "Chola",
+                        "IDFC FIRST Bank",
+                      ] as const
+                    ).map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        variant={paymentMethod === m ? "default" : "outline"}
+                        size="sm"
+                        className={`h-7 text-xs px-2.5 font-medium ${
+                          paymentMethod === m
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                        }`}
+                        onClick={() => setPaymentMethod(m)}
+                      >
+                        {m}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {[
+                  "Bajaj Finserv",
+                  "DMI Finance",
+                  "Home Credit",
+                  "TVS Credit",
+                  "Chola",
+                  "IDFC FIRST Bank",
+                ].includes(paymentMethod) && (
+                  <div className="pt-1 space-y-1.5 bg-emerald-50/60 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 shrink-0">
+                        Loan / App Ref:
+                      </label>
+                      <Input
+                        placeholder="e.g. Agreement ID, Approval No., Loan ID"
+                        value={paymentRef}
+                        onChange={(e) => setPaymentRef(e.target.value)}
+                        className="h-7 text-xs bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-200 bg-amber-100/80 dark:bg-amber-950/60 p-1.5 rounded border border-amber-300 dark:border-amber-800">
+                      📌 EMI Note: Emi कटने के तारीख से 3 दिन पहले A/c में पैसा डाल के रखना अनिवार्य
+                      है
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Button
@@ -943,7 +1040,8 @@ export function BillingPage() {
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogTitle>Select Physical Unit (IMEI)</DialogTitle>
           <DialogDescription>
-            {unitSelectProduct?.name} ({availableUnits.length} in stock). Choose an IMEI or auto-pick oldest.
+            {unitSelectProduct?.name} ({availableUnits.length} in stock). Choose an IMEI or
+            auto-pick oldest.
           </DialogDescription>
 
           <div className="py-2 space-y-3">
@@ -1030,7 +1128,8 @@ export function BillingPage() {
         <DialogContent className="max-w-md">
           <DialogTitle>Complete GST Sale?</DialogTitle>
           <DialogDescription>
-            {cart.length} item{cart.length !== 1 ? "s" : ""} · {money(grossTotal)} via {paymentMethod}.
+            {cart.length} item{cart.length !== 1 ? "s" : ""} · {money(grossTotal)} via{" "}
+            {paymentMethod}.
             <br />
             IMEIs will be marked SOLD and GST invoice will be generated.
           </DialogDescription>
@@ -1038,8 +1137,14 @@ export function BillingPage() {
             {cart.map((l) => (
               <div key={l.lineId} className="py-1.5 flex justify-between items-center">
                 <div>
-                  <div className="font-medium">{l.product.name} × {l.qty}</div>
-                  {l.imei && <div className="font-mono text-[10px] text-muted-foreground">IMEI: {l.imei}</div>}
+                  <div className="font-medium">
+                    {l.product.name} × {l.qty}
+                  </div>
+                  {l.imei && (
+                    <div className="font-mono text-[10px] text-muted-foreground">
+                      IMEI: {l.imei}
+                    </div>
+                  )}
                 </div>
                 <span className="font-semibold">{money(l.qty * l.unitPrice)}</span>
               </div>

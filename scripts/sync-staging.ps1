@@ -1,4 +1,4 @@
-﻿# PowerShell Staging Sync Script
+# PowerShell Staging Sync Script
 # One-way sync: Production -> Staging / Dev branch
 param(
     [string]$TargetDatabaseUrl = $env:STAGING_DATABASE_URL,
@@ -29,3 +29,4 @@ Write-Host "3. Running verification..."
 node backend/prisma/scripts/merge-products-into-models.js --dry-run
 
 Write-Host "🎉 Staging sync and masking completed safely." -ForegroundColor Green
+

@@ -65,3 +65,4 @@ if (process.argv[1]?.endsWith('convert-prices.js')) {
     })
     .finally(() => prisma.$disconnect());
 }
+

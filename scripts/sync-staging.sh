@@ -27,3 +27,4 @@ echo "3. Running verification..."
 DATABASE_URL="$TARGET_URL" node backend/prisma/scripts/merge-products-into-models.js --dry-run
 
 echo "🎉 Staging sync completed safely."
+

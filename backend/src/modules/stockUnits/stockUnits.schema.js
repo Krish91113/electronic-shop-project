@@ -58,3 +58,4 @@ export const updateStockUnitSchema = z.object({
     status: z.enum(['IN_STOCK', 'DAMAGED', 'RETURNED_TO_SUPPLIER', 'RESERVED']).optional(),
   }),
 });
+

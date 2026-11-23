@@ -13,7 +13,7 @@ export type { User, Shop };
 
 interface AuthState {
   user: User | null;
-  activeShop: Pick<Shop, "id" | "name" | "slug" | "code"> | null;
+  activeShop: Pick<Shop, "id" | "name" | "slug" | "code" | "stateCode"> | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeShop, setActiveShopState] = useState<Pick<
     Shop,
-    "id" | "name" | "slug" | "code"
+    "id" | "name" | "slug" | "code" | "stateCode"
   > | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

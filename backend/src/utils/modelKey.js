@@ -107,3 +107,4 @@ export function parseProductModel(name) {
     color: color || null,
   };
 }
+

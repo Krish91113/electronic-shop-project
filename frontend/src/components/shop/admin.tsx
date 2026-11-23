@@ -350,8 +350,8 @@ export function ProductsPage() {
                       p.minPrice != null && p.maxPrice != null && p.minPrice !== p.maxPrice
                         ? `${fmt(p.minPrice)} – ${fmt(p.maxPrice)}`
                         : p.defaultSellingPrice != null
-                        ? fmt(p.defaultSellingPrice)
-                        : "—";
+                          ? fmt(p.defaultSellingPrice)
+                          : "—";
 
                     return (
                       <Fragment key={p.id}>
@@ -385,9 +385,7 @@ export function ProductsPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                                  onClick={() =>
-                                    setExpandedProductId(isExpanded ? null : p.id)
-                                  }
+                                  onClick={() => setExpandedProductId(isExpanded ? null : p.id)}
                                 >
                                   {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                                   <span className="text-[10px] ml-0.5">
@@ -447,7 +445,9 @@ export function ProductsPage() {
                             <td colSpan={7} className="p-3">
                               <div className="rounded-md border bg-background p-3 text-xs space-y-2">
                                 <div className="flex justify-between items-center font-semibold text-muted-foreground">
-                                  <span>In-Stock IMEIs for {p.name} ({p.stockUnits?.length ?? 0})</span>
+                                  <span>
+                                    In-Stock IMEIs for {p.name} ({p.stockUnits?.length ?? 0})
+                                  </span>
                                   <Link
                                     to="/products/$id/edit"
                                     params={{ id: p.id }}
@@ -463,7 +463,9 @@ export function ProductsPage() {
                                       className="p-2 rounded border bg-muted/40 font-mono text-[11px] flex justify-between items-center"
                                     >
                                       <div>
-                                        <div className="font-semibold text-foreground">{u.imei1}</div>
+                                        <div className="font-semibold text-foreground">
+                                          {u.imei1}
+                                        </div>
                                         {u.imei2 && (
                                           <div className="text-muted-foreground text-[10px]">
                                             {u.imei2}
@@ -662,6 +664,13 @@ export function ProductFormPage() {
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Non-serialized quick receive state
+  const [receiveNonSerialOpen, setReceiveNonSerialOpen] = useState(false);
+  const [nonSerialQty, setNonSerialQty] = useState(1);
+  const [nonSerialCost, setNonSerialCost] = useState(0);
+  const [nonSerialNotes, setNonSerialNotes] = useState("");
+  const [receivingNonSerial, setReceivingNonSerial] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -716,6 +725,7 @@ export function ProductFormPage() {
       setSellingPrice(existing.defaultSellingPrice);
       setIsPublished(existing.isPublished);
       setTaxCategoryId(existing.taxCategoryId ?? "");
+      setNonSerialCost(existing.purchaseCost);
       const primaryImg = existing.images?.find((i) => i.isPrimary) ?? existing.images?.[0];
       if (primaryImg) setImagePreview(primaryImg.url);
     }
@@ -815,18 +825,22 @@ export function ProductFormPage() {
       }
       navigate({ to: "/products" });
     } catch (err: unknown) {
-      const errResponse = (err as {
-        response?: {
-          status?: number;
-          data?: { code?: string; error?: string; existingProductId?: string };
-        };
-      })?.response;
+      const errResponse = (
+        err as {
+          response?: {
+            status?: number;
+            data?: { code?: string; error?: string; existingProductId?: string };
+          };
+        }
+      )?.response;
       if (errResponse?.data?.code === "DUPLICATE_MODEL" || errResponse?.status === 409) {
         setDuplicateError({
           message:
-            errResponse.data.error ||
+            errResponse?.data?.error ||
             "A product model variant with this brand, model, variant, and color already exists.",
-          existingProductId: errResponse.data.existingProductId,
+          ...(errResponse?.data?.existingProductId
+            ? { existingProductId: errResponse.data.existingProductId }
+            : {}),
         });
         toast.error("Duplicate model detected! See banner on form.");
       } else {
@@ -910,7 +924,10 @@ export function ProductFormPage() {
                       size="sm"
                       className="bg-rose-700 hover:bg-rose-800 text-white font-medium"
                     >
-                      <Link to="/products/$id/edit" params={{ id: duplicateError.existingProductId }}>
+                      <Link
+                        to="/products/$id/edit"
+                        params={{ id: duplicateError.existingProductId }}
+                      >
                         Go to Existing Model Variant &amp; Add Stock
                       </Link>
                     </Button>
@@ -923,54 +940,87 @@ export function ProductFormPage() {
 
         {/* Model Autocomplete / Type-ahead (when adding new product) */}
         {!id && (
-          <div className="panel mb-4 p-4 bg-muted/20">
+          <div className="rounded-xl border border-border bg-card p-4 mb-4 relative z-30 overflow-visible shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
               <Boxes size={14} /> Quick Model Lookup
             </h3>
             <p className="text-xs text-muted-foreground mb-2">
-              Search by brand or model (e.g. "Oppo A6x", "Vivo Y28") to avoid creating duplicate models.
+              Search by brand or model (e.g. "Oppo A6x", "Vivo Y28", "iPhone") to avoid creating
+              duplicate models.
             </p>
-            <div className="relative">
-              <SearchInput
-                value={modelSearch}
-                onChange={setModelSearch}
-                placeholder="Type brand or model name…"
-              />
-              {modelSearchResults && modelSearchResults.length > 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-background rounded-lg border shadow-lg max-h-56 overflow-y-auto divide-y">
-                  {modelSearchResults.map((m) => (
-                    <div
-                      key={m.id}
-                      className="p-2.5 hover:bg-muted/50 cursor-pointer flex justify-between items-center text-xs"
-                      onClick={() => {
-                        setName(m.name);
-                        setBrand(m.brand ?? "");
-                        setModel(m.model ?? "");
-                        setVariant(m.variant ?? "");
-                        setColor(m.color ?? "");
-                        setHsnCode(m.hsnCode ?? "8517");
-                        setTrackSerial(m.trackSerial ?? false);
-                        if (m.defaultSellingPrice) setSellingPrice(m.defaultSellingPrice);
-                        setModelSearch("");
-                        toast.success(`Selected model: ${m.name}`);
-                      }}
-                    >
-                      <div>
-                        <div className="font-semibold">{m.name}</div>
-                        <div className="text-muted-foreground text-[11px]">
-                          {[m.brand, m.model, m.variant, m.color].filter(Boolean).join(" · ")}
+            <div className="relative z-40">
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <SearchInput
+                    value={modelSearch}
+                    onChange={setModelSearch}
+                    placeholder="Type brand or model name…"
+                  />
+                </div>
+                {modelSearch && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setModelSearch("")}
+                    className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              {modelSearch.trim().length >= 2 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-popover text-popover-foreground rounded-xl border border-border shadow-2xl max-h-72 overflow-y-auto divide-y divide-border">
+                  {modelSearchResults && modelSearchResults.length > 0 ? (
+                    <>
+                      <div className="px-3 py-1.5 bg-muted/60 text-[11px] font-semibold text-muted-foreground flex justify-between items-center sticky top-0 backdrop-blur-sm z-10 border-b">
+                        <span>Matching Existing Models ({modelSearchResults.length})</span>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
+                          Click to autofill
+                        </span>
+                      </div>
+                      {modelSearchResults.map((m) => (
+                        <div
+                          key={m.id}
+                          className="p-3 hover:bg-accent hover:text-accent-foreground cursor-pointer flex justify-between items-center text-xs transition-colors"
+                          onClick={() => {
+                            setName(m.name);
+                            setBrand(m.brand ?? "");
+                            setModel(m.model ?? "");
+                            setVariant(m.variant ?? "");
+                            setColor(m.color ?? "");
+                            setHsnCode(m.hsnCode ?? "8517");
+                            setTrackSerial(m.trackSerial ?? false);
+                            if (m.defaultSellingPrice) setSellingPrice(m.defaultSellingPrice);
+                            setModelSearch("");
+                            toast.success(`Autofilled model: ${m.name}`);
+                          }}
+                        >
+                          <div>
+                            <div className="font-semibold text-foreground">{m.name}</div>
+                            <div className="text-muted-foreground text-[11px] mt-0.5">
+                              {[m.brand, m.model, m.variant, m.color].filter(Boolean).join(" · ") ||
+                                "Standard Model"}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 block text-xs">
+                              {m.inStockCount ?? 0} in stock
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {m.defaultSellingPrice ? fmt(m.defaultSellingPrice) : "—"}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-medium text-emerald-600 block">
-                          {m.inStockCount ?? 0} in stock
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {m.defaultSellingPrice ? fmt(m.defaultSellingPrice) : "—"}
-                        </span>
-                      </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="p-3.5 text-xs text-muted-foreground text-center">
+                      No existing models matching{" "}
+                      <span className="font-medium text-foreground">"{modelSearch}"</span>. You can
+                      create this as a new model below.
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -1196,7 +1246,8 @@ export function ProductFormPage() {
                   <div>
                     <h3 className="font-semibold text-sm">Track individual IMEI numbers</h3>
                     <p className="text-xs text-muted-foreground">
-                      Enable for mobile phones &amp; tablets to track each physical phone unit by IMEI.
+                      Enable for mobile phones &amp; tablets to track each physical phone unit by
+                      IMEI.
                     </p>
                   </div>
                   <Switch
@@ -1282,7 +1333,9 @@ export function ProductFormPage() {
                     </div>
                     <div className="flex justify-between items-center text-sm font-bold text-foreground">
                       <span>Customer Pays (Gross):</span>
-                      <span className="text-emerald-700 dark:text-emerald-400">{fmt(sellingPrice)}</span>
+                      <span className="text-emerald-700 dark:text-emerald-400">
+                        {fmt(sellingPrice)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
                       <span>Taxable Value (Ex-GST Base):</span>
@@ -1437,7 +1490,8 @@ export function ProductFormPage() {
               <div className="mb-4">
                 <h2 className="text-base font-bold">IMEI / Serial Numbers Stock</h2>
                 <p className="text-xs text-muted-foreground">
-                  Individual phone units for this model variant. Add, review, mark damaged, or return units.
+                  Individual phone units for this model variant. Add, review, mark damaged, or
+                  return units.
                 </p>
               </div>
               <StockUnitsManager
@@ -1449,7 +1503,134 @@ export function ProductFormPage() {
             </section>
           </div>
         )}
+
+        {/* Quick Inventory / Stock Management for Non-Serialized Products (Accessories, Cables, Chargers, Covers) */}
+        {id && existing && !existing.trackSerial && (
+          <div className="mt-8">
+            <section className="panel panel-body">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <Boxes size={18} className="text-emerald-600" /> Accessory Inventory &amp; Stock
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    This is a standard non-serialized product (charger, cable, cover, tempered
+                    glass). Stock is tracked by total quantity.
+                  </p>
+                  <div className="mt-2.5 flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-foreground">
+                      {existing.inventory?.quantity ?? 0}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      units currently in stock
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setNonSerialQty(1);
+                      setNonSerialCost(existing.purchaseCost);
+                      setReceiveNonSerialOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                    size="sm"
+                  >
+                    <Plus size={15} className="mr-1" /> Receive More Stock
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
+
+      {/* Receive Stock Dialog for Non-Serialized Products */}
+      {id && existing && !existing.trackSerial && (
+        <Dialog open={receiveNonSerialOpen} onOpenChange={setReceiveNonSerialOpen}>
+          <DialogContent className="max-w-md">
+            <DialogTitle>Receive Stock — {existing.name}</DialogTitle>
+            <DialogDescription>
+              Add incoming units directly to this product's inventory.
+            </DialogDescription>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!id || nonSerialQty <= 0) return;
+                try {
+                  setReceivingNonSerial(true);
+                  await inventoryApi.receive({
+                    productId: id,
+                    quantity: nonSerialQty,
+                    unitCost: nonSerialCost,
+                    notes: nonSerialNotes.trim() || undefined,
+                  });
+                  qc.invalidateQueries({ queryKey: ["product", id] });
+                  qc.invalidateQueries({ queryKey: ["products"] });
+                  qc.invalidateQueries({ queryKey: ["inventory"] });
+                  toast.success(`Successfully added ${nonSerialQty} units to stock!`);
+                  setReceiveNonSerialOpen(false);
+                  setNonSerialQty(1);
+                  setNonSerialNotes("");
+                } catch (err) {
+                  toast.error(getErrorMessage(err));
+                } finally {
+                  setReceivingNonSerial(false);
+                }
+              }}
+              className="space-y-3 pt-2"
+            >
+              <Field label="Quantity to add *">
+                <Input
+                  type="number"
+                  min={1}
+                  required
+                  value={nonSerialQty}
+                  onChange={(e) => setNonSerialQty(Math.max(1, Number(e.target.value)))}
+                  placeholder="e.g. 10"
+                />
+              </Field>
+              <Field label="Unit Purchase Cost (₹) *">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={nonSerialCost}
+                  onChange={(e) => setNonSerialCost(Number(e.target.value))}
+                />
+              </Field>
+              <Field label="Supplier / Invoice Notes (Optional)">
+                <Input
+                  placeholder="e.g. Supplier Invoice #99"
+                  value={nonSerialNotes}
+                  onChange={(e) => setNonSerialNotes(e.target.value)}
+                />
+              </Field>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReceiveNonSerialOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={receivingNonSerial || nonSerialQty <= 0}
+                >
+                  {receivingNonSerial ? "Adding…" : `Add ${nonSerialQty} Units to Stock`}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete confirmation dialog for Edit mode */}
       {id && (
@@ -1522,9 +1703,9 @@ export function InventoryPage() {
       const res = await inventoryApi.reconcile();
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(
-        `Reconciled ${res.reconciledCount} product(s) (${res.discrepanciesFixed} discrepancies fixed).`,
-      );
+      const count = res.totalProductsChecked ?? res.reconciledCount ?? 0;
+      const fixed = res.driftsFound ?? res.discrepanciesFixed ?? 0;
+      toast.success(`Reconciled ${count} product(s) (${fixed} discrepancies fixed).`);
     } catch (err) {
       toast.error(getErrorMessage(err));
     } finally {
@@ -1872,17 +2053,23 @@ export function InventoryPage() {
           {adjustItem?.product.trackSerial ? (
             <div className="space-y-3 py-2 text-xs">
               <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-900 dark:text-amber-200">
-                <strong>Serialized Model Product:</strong> Direct quantity adjustments are disabled for phone models.
-                Stock count is calculated directly from physical in-stock IMEI units.
+                <strong>Serialized Model Product:</strong> Direct quantity adjustments are disabled
+                for phone models. Stock count is calculated directly from physical in-stock IMEI
+                units.
               </div>
               <p className="text-muted-foreground">
-                To adjust stock for this phone model, manage individual IMEI units (add, delete, mark damaged, or return).
+                To adjust stock for this phone model, manage individual IMEI units (add, delete,
+                mark damaged, or return).
               </p>
               <div className="dialog-actions pt-2 flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setAdjustItem(null)}>
                   Close
                 </Button>
-                <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button
+                  asChild
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
                   <Link to="/products/$id/edit" params={{ id: adjustItem.productId }}>
                     Manage Stock Units (IMEIs)
                   </Link>
@@ -2114,7 +2301,8 @@ export function ReceiveStockPage() {
                       Receive Serialized Phone Units (IMEIs)
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      This product model tracks stock by individual IMEI numbers. Enter or scan IMEIs below.
+                      This product model tracks stock by individual IMEI numbers. Enter or scan
+                      IMEIs below.
                     </p>
                   </div>
                   <ImeiBulkInput
@@ -2348,6 +2536,7 @@ export function DashboardPage() {
                         <th>Invoice</th>
                         <th>Date</th>
                         <th>Total</th>
+                        <th>Payment</th>
                         <th>Status</th>
                         <th />
                       </tr>
@@ -2366,6 +2555,11 @@ export function DashboardPage() {
                           </td>
                           <td>{formatDate(s.createdAt)}</td>
                           <td className="font-medium">{fmt(s.totalAmount)}</td>
+                          <td>
+                            <span className="font-medium text-xs">
+                              {s.paymentMode || s.payments?.[0]?.method || "—"}
+                            </span>
+                          </td>
                           <td>
                             <span className="status status-success">
                               <span />
@@ -2402,7 +2596,10 @@ export function DashboardPage() {
                         <strong>{fmt(s.totalAmount)}</strong>
                       </div>
                       <div className="mobile-record-meta">
-                        <span>{formatDate(s.createdAt)}</span>
+                        <span>
+                          {formatDate(s.createdAt)} ·{" "}
+                          {s.paymentMode || s.payments?.[0]?.method || "—"}
+                        </span>
                         <span className="status status-success">
                           <span />
                           {s.status}
@@ -2488,7 +2685,11 @@ export function SalesPage() {
                       <td>{formatDate(s.createdAt)}</td>
                       <td>{s.items?.length ?? 0}</td>
                       <td className="font-medium">{fmt(s.totalAmount)}</td>
-                      <td>{s.payments?.[0]?.method ?? "—"}</td>
+                      <td>
+                        <span className="font-medium text-xs">
+                          {s.paymentMode || s.payments?.[0]?.method || "—"}
+                        </span>
+                      </td>
                       <td>
                         <span className="status status-success">
                           <span />
@@ -2545,7 +2746,7 @@ export function SalesPage() {
                   </div>
                   <div className="mobile-record-meta">
                     <span>
-                      {formatDate(s.createdAt)} · {s.payments?.[0]?.method ?? "—"}
+                      {formatDate(s.createdAt)} · {s.paymentMode || s.payments?.[0]?.method || "—"}
                     </span>
                     <span className="status status-success">
                       <span />
@@ -2639,12 +2840,33 @@ export function InvoicePage() {
                   GSTIN: {sale.shop.gstin}
                 </p>
               )}
-              {(sale.customerName || sale.customerPhone) && (
-                <div className="mt-3 text-xs border-t pt-2">
-                  <span className="font-semibold text-foreground">Billed to: </span>
-                  {sale.customerName && <span>{sale.customerName}</span>}
-                  {sale.customerName && sale.customerPhone && <span> · </span>}
-                  {sale.customerPhone && <span>Tel: {sale.customerPhone}</span>}
+              {(sale.customerName || sale.customerPhone || sale.customerGstin) && (
+                <div className="mt-3 text-xs border-t pt-2 space-y-0.5">
+                  <div className="font-semibold text-foreground">
+                    Billed to: {sale.customerName || "Customer"}
+                    {sale.customerPhone && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        · Tel: {sale.customerPhone}
+                      </span>
+                    )}
+                  </div>
+                  {sale.customerAddress && (
+                    <div className="text-muted-foreground">{sale.customerAddress}</div>
+                  )}
+                  {sale.customerGstin && (
+                    <div className="font-medium text-foreground">GSTIN: {sale.customerGstin}</div>
+                  )}
+                  {sale.customerAadhaar && (
+                    <div className="text-muted-foreground">
+                      Aadhaar (last 4): {sale.customerAadhaar}
+                    </div>
+                  )}
+                  {sale.placeOfSupply && (
+                    <div className="text-muted-foreground">
+                      Place of Supply: {sale.placeOfSupply}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2655,7 +2877,7 @@ export function InvoicePage() {
                 <br />
                 {formatDate(sale.createdAt)}
                 <br />
-                Payment: {sale.payments?.[0]?.method ?? "—"}
+                Payment: {sale.paymentMode || sale.payments?.[0]?.method || "—"}
               </p>
             </div>
           </div>
@@ -2674,9 +2896,11 @@ export function InvoicePage() {
                 <tr key={it.id}>
                   <td>
                     <div className="font-medium">{it.productNameSnapshot}</div>
-                    {it.serialNumber && (
+                    {(it.imeiSnapshot || it.serialNumber) && (
                       <div className="text-xs font-mono text-muted-foreground">
-                        IMEI/SN: {it.serialNumber}
+                        IMEI: {it.imeiSnapshot || it.serialNumber}
+                        {it.imei2Snapshot && ` / ${it.imei2Snapshot}`}
+                        {it.chargerNoSnapshot && ` · Charger: ${it.chargerNoSnapshot}`}
                       </div>
                     )}
                     {it.product?.warranty && (
@@ -2892,7 +3116,10 @@ export function SettingsPage() {
     try {
       const brandsRaw = str("brandsServiced");
       const brandsServiced = brandsRaw
-        ? brandsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        ? brandsRaw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : undefined;
 
       await shopsApi.updateCurrent({
@@ -3061,7 +3288,10 @@ export function SettingsPage() {
                   <Field label="Tagline / Header Subtitle">
                     <Input
                       name="tagline"
-                      defaultValue={shop?.tagline ?? "Mobile Sale & Service — All Types of Mobile Repairing here"}
+                      defaultValue={
+                        shop?.tagline ??
+                        "Mobile Sale & Service — All Types of Mobile Repairing here"
+                      }
                       placeholder="e.g. Mobile Sale & Service"
                     />
                   </Field>
@@ -3080,8 +3310,8 @@ export function SettingsPage() {
                           Array.isArray(shop?.brandsServiced)
                             ? shop.brandsServiced.join(", ")
                             : typeof shop?.brandsServiced === "string"
-                            ? shop.brandsServiced
-                            : "NOKIA, SAMSUNG, vivo, oppo, mi, Realme, TECNO"
+                              ? shop.brandsServiced
+                              : "NOKIA, SAMSUNG, vivo, oppo, mi, Realme, TECNO"
                         }
                         placeholder="NOKIA, SAMSUNG, vivo, oppo, mi, Realme, TECNO"
                       />

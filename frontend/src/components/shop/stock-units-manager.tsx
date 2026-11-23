@@ -48,11 +48,11 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-interface StockUnitsManagerProps {
+export interface StockUnitsManagerProps {
   productId: string;
   productName: string;
-  defaultPurchaseCost?: number;
-  defaultSellingPrice?: number;
+  defaultPurchaseCost?: number | undefined;
+  defaultSellingPrice?: number | null | undefined;
 }
 
 export function StockUnitsManager({
@@ -73,7 +73,7 @@ export function StockUnitsManager({
       stockUnitsApi.list({
         productId,
         status: statusFilter === "ALL" ? undefined : statusFilter,
-        search: search.trim() || undefined,
+        q: search.trim() || undefined,
         limit: 100,
       }),
   });
@@ -81,8 +81,15 @@ export function StockUnitsManager({
   const units = data?.units ?? [];
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ unitId, status, notes }: { unitId: string; status: string; notes?: string }) =>
-      stockUnitsApi.updateStatus(unitId, { status, notes }),
+    mutationFn: ({
+      unitId,
+      status,
+      notes,
+    }: {
+      unitId: string;
+      status: "IN_STOCK" | "DAMAGED" | "RETURNED_TO_SUPPLIER" | "RESERVED";
+      notes?: string | undefined;
+    }) => stockUnitsApi.update(unitId, { status, notes }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["stock-units"] });
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -127,7 +134,15 @@ export function StockUnitsManager({
                 style={{ fontSize: "11px", padding: "3px 8px" }}
                 onClick={() => setStatusFilter(st)}
               >
-                {st === "ALL" ? "All" : st === "IN_STOCK" ? "In Stock" : st === "SOLD" ? "Sold" : st === "DAMAGED" ? "Damaged" : "Returned"}
+                {st === "ALL"
+                  ? "All"
+                  : st === "IN_STOCK"
+                    ? "In Stock"
+                    : st === "SOLD"
+                      ? "Sold"
+                      : st === "DAMAGED"
+                        ? "Damaged"
+                        : "Returned"}
               </button>
             ))}
           </div>
@@ -287,10 +302,8 @@ export function StockUnitsManager({
           </DialogTitle>
           <DialogDescription>
             Are you sure you want to delete unit with IMEI{" "}
-            <span className="font-mono font-bold text-foreground">
-              {confirmDeleteUnit?.imei1}
-            </span>
-            ? This will decrease stock count by 1.
+            <span className="font-mono font-bold text-foreground">{confirmDeleteUnit?.imei1}</span>?
+            This will decrease stock count by 1.
           </DialogDescription>
           <div className="dialog-actions mt-4 flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={() => setConfirmDeleteUnit(null)}>
